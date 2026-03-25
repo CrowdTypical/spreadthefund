@@ -1,14 +1,21 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 import '../services/bill_service.dart';
 import '../models/bill.dart';
 import '../models/group.dart';
 import 'add_bill_screen.dart';
+import 'bill_detail_screen.dart';
+import 'group_details_screen.dart';
 import 'partner_setup_screen.dart';
+
+const String appVersion = 'v1.0.1';
+const String releasesUrl = 'https://github.com/CrowdTypical/spreadthefund/releases';
 
 const _categoryIcons = <String, IconData>{
   'food': Icons.restaurant,
@@ -42,26 +49,178 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     billService = BillService();
     _checkGroup();
+    _checkForUpdate();
   }
 
   Future<void> _checkGroup() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final groups = await billService.getUserGroupsStream(user.uid).first;
+      // Process any pending invites every time the app starts (not just on sign-in),
+      // since Firebase caches auth state across sessions.
+      if (user.email != null) {
+        // Migrate any old UID-based memberships to email
+        await billService.migrateUidToEmail(user.uid, user.email!);
+        await billService.processPendingInvites(user.email!);
+      }
+
+      final email = user.email!.toLowerCase();
+      final groups = await billService.getUserGroupsStream(email).first;
       if (groups.isNotEmpty) {
+        // Prefer a shared group (>1 member) over a solo personal group
+        final sharedGroups = groups.where((g) => g.members.length > 1).toList();
+        final selected = sharedGroups.isNotEmpty ? sharedGroups.first : groups.first;
         setState(() {
-          groupId = groups.first.id;
+          groupId = selected.id;
           groupChecked = true;
         });
       } else {
         // Auto-create a personal group so the app is immediately usable
-        final newId = await billService.createPersonalGroup(user.uid);
+        final newId = await billService.createPersonalGroup(email);
         setState(() {
           groupId = newId;
           groupChecked = true;
         });
       }
     }
+  }
+
+  /// Returns true if [remote] is a newer semver than [local].
+  /// Strips leading 'v' or 'v.' prefixes before comparing.
+  bool _isNewerVersion(String remote, String local) {
+    List<int> parse(String v) {
+      final cleaned = v.replaceFirst(RegExp(r'^v\.?'), '');
+      return cleaned.split('.').map((s) => int.tryParse(s) ?? 0).toList();
+    }
+    final r = parse(remote);
+    final l = parse(local);
+    final len = r.length > l.length ? r.length : l.length;
+    for (int i = 0; i < len; i++) {
+      final rp = i < r.length ? r[i] : 0;
+      final lp = i < l.length ? l[i] : 0;
+      if (rp > lp) return true;
+      if (rp < lp) return false;
+    }
+    return false;
+  }
+
+  Future<void> _checkForUpdate() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.github.com/repos/CrowdTypical/spreadthefund/releases/latest'),
+        headers: {'Accept': 'application/vnd.github.v3+json'},
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final latestTag = data['tag_name'] as String?;
+        if (latestTag != null && _isNewerVersion(latestTag, appVersion) && mounted) {
+          _showUpdateDialog(latestTag);
+        }
+      }
+    } catch (_) {
+      // Silently fail — don't block the app if the check fails
+    }
+  }
+
+  void _showUpdateDialog(String latestVersion) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141A22),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: const Text(
+          'UPDATE AVAILABLE',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            color: Color(0xFF00E5CC),
+          ),
+        ),
+        content: Text(
+          'A new version ($latestVersion) is available.\n\nYou are on $appVersion.',
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 13,
+            color: Color(0xFFE0E0E0),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'LATER',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+                color: Color(0xFF8899AA),
+              ),
+            ),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openReleasesPage();
+            },
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF00E5CC)),
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            ),
+            child: const Text(
+              'UPDATE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+                color: Color(0xFF00E5CC),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openReleasesPage() async {
+    // Use url_launcher if available, otherwise show the URL
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141A22),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: const Text(
+          'DOWNLOAD UPDATE',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            color: Color(0xFF00E5CC),
+          ),
+        ),
+        content: const SelectableText(
+          releasesUrl,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 12,
+            color: Color(0xFF00E5CC),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+                color: Color(0xFF00E5CC),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _invitePartner() {
@@ -111,13 +270,13 @@ class _HomeScreenState extends State<HomeScreen> {
           if (groupId == null) {
             final user = FirebaseAuth.instance.currentUser;
             if (user != null) {
-              final newId = await billService.createPersonalGroup(user.uid);
+              final newId = await billService.createPersonalGroup(user.email!.toLowerCase());
               if (newId != null) {
                 setState(() => groupId = newId);
               }
             }
           }
-          if (groupId != null && mounted) {
+          if (groupId != null && context.mounted) {
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -262,7 +421,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: user == null
                 ? const SizedBox.shrink()
                 : StreamBuilder<List<Group>>(
-                    stream: billService.getUserGroupsStream(user.uid),
+                    stream: billService.getUserGroupsStream(user.email!.toLowerCase()),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
@@ -297,7 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             margin: const EdgeInsets.only(bottom: 2),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xFF00E5CC).withOpacity(0.1)
+                                  ? const Color(0xFF00E5CC).withValues(alpha: 0.1)
                                   : Colors.transparent,
                               border: Border(
                                 left: BorderSide(
@@ -343,8 +502,33 @@ class _HomeScreenState extends State<HomeScreen> {
                                 setState(() => groupId = group.id);
                                 Navigator.pop(context);
                               },
-                              onLongPress: () {
-                                _showDeleteGroupConfirmation(group.id, group.name);
+                              onLongPress: () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                Navigator.pop(context); // close drawer
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => GroupDetailsScreen(groupId: group.id),
+                                  ),
+                                );
+                                if (result == 'deleted' && mounted) {
+                                  final user = FirebaseAuth.instance.currentUser;
+                                  if (user != null) {
+                                    final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
+                                    setState(() {
+                                      groupId = groups.isNotEmpty ? groups.first.id : null;
+                                    });
+                                  }
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      backgroundColor: Color(0xFF141A22),
+                                      content: Text(
+                                        'Group deleted',
+                                        style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+                                      ),
+                                    ),
+                                  );
+                                }
                               },
                             ),
                           );
@@ -392,6 +576,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: _logout,
                 ),
               ],
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Text(
+              appVersion,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                letterSpacing: 1,
+                color: Color(0xFF556677),
+              ),
             ),
           ),
           SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
@@ -544,7 +741,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(ctx);
               final user = FirebaseAuth.instance.currentUser;
               if (user != null) {
-                final newId = await billService.createNamedGroup(user.uid, name);
+                final newId = await billService.createNamedGroup(user.email!.toLowerCase(), name);
                 if (newId != null && mounted) {
                   setState(() => groupId = newId);
                 }
@@ -659,38 +856,38 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               final success = await billService.deleteGroup(targetGroupId);
-              if (mounted) {
-                if (success) {
-                  // If the deleted group was the active one, switch away
-                  if (groupId == targetGroupId) {
-                    final user = FirebaseAuth.instance.currentUser;
-                    if (user != null) {
-                      final groups = await billService.getUserGroupsStream(user.uid).first;
-                      setState(() {
-                        groupId = groups.isNotEmpty ? groups.first.id : null;
-                      });
-                    }
+              if (!mounted) return;
+              if (success) {
+                // If the deleted group was the active one, switch away
+                if (groupId == targetGroupId) {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
+                    setState(() {
+                      groupId = groups.isNotEmpty ? groups.first.id : null;
+                    });
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: Color(0xFF141A22),
-                      content: Text(
-                        'Group deleted',
-                        style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
-                      ),
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: Color(0xFF141A22),
-                      content: Text(
-                        'Error deleting group',
-                        style: TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
-                      ),
-                    ),
-                  );
                 }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: Color(0xFF141A22),
+                    content: Text(
+                      'Group deleted',
+                      style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: Color(0xFF141A22),
+                    content: Text(
+                      'Error deleting group',
+                      style: TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
+                    ),
+                  ),
+                );
               }
             },
             child: const Text(
@@ -717,7 +914,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) {
         return StreamBuilder<List<Group>>(
-          stream: billService.getUserGroupsStream(user.uid),
+          stream: billService.getUserGroupsStream(user.email!.toLowerCase()),
           builder: (context, snapshot) {
             final groups = snapshot.data ?? [];
             final currentGroup = groups.where((g) => g.id == groupId).toList();
@@ -870,7 +1067,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Record the settlement — "from" is the person who owes, "to" is the person owed
               await billService.settleUp(
                 groupId: groupId!,
-                from: user.uid,
+                from: user.email!.toLowerCase(),
                 to: 'partner', // generic target since it's a 2-person split
                 amount: amount,
               );
@@ -911,7 +1108,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Group name banner
         if (user != null)
           StreamBuilder<List<Group>>(
-            stream: billService.getUserGroupsStream(user.uid),
+            stream: billService.getUserGroupsStream(user.email!.toLowerCase()),
             builder: (context, snapshot) {
               final groups = snapshot.data ?? [];
               final current = groups.where((g) => g.id == groupId).toList();
@@ -1037,16 +1234,16 @@ class _HomeScreenState extends State<HomeScreen> {
         return StreamBuilder<QuerySnapshot>(
           stream: billService.getSettlementsStream(groupId!),
           builder: (context, settleSnap) {
-            final currentUser = FirebaseAuth.instance.currentUser!.uid;
+            final currentUser = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
             double totalYouOwe = 0;
             double totalTheyOwe = 0;
 
             for (var bill in bills) {
-              final splitAmount = bill.amount / 2;
+              final otherOwes = bill.amount * (100 - bill.splitPercent) / 100;
               if (bill.paidBy == currentUser) {
-                totalTheyOwe += splitAmount;
+                totalTheyOwe += otherOwes;
               } else {
-                totalYouOwe += splitAmount;
+                totalYouOwe += otherOwes;
               }
             }
 
@@ -1099,11 +1296,11 @@ class _HomeScreenState extends State<HomeScreen> {
             for (final item in chronological) {
               if (item['type'] == 'bill') {
                 final bill = item['data'] as Bill;
-                final split = bill.amount / 2;
+                final otherOwes = bill.amount * (100 - bill.splitPercent) / 100;
                 if (bill.paidBy == currentUser) {
-                  runningOwed -= split; // they owe you
+                  runningOwed -= otherOwes; // they owe you
                 } else {
-                  runningOwed += split; // you owe them
+                  runningOwed += otherOwes; // you owe them
                 }
               } else {
                 runningSettled += item['amount'] as double;
@@ -1290,7 +1487,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBillTile(Bill bill, BillService service) {
-    final currentUser = FirebaseAuth.instance.currentUser!.uid;
+    final currentUser = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
     final isYourBill = bill.paidBy == currentUser;
     final accentColor = isYourBill ? const Color(0xFF00E5CC) : const Color(0xFFFF4C5E);
 
@@ -1304,6 +1501,21 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       child: InkWell(
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BillDetailScreen(
+                bill: bill,
+                groupId: groupId!,
+                billService: service,
+              ),
+            ),
+          );
+          if (result == 'updated' || result == 'deleted') {
+            setState(() {});
+          }
+        },
         onLongPress: () => _showDeleteOption(bill, service),
         child: Row(
           children: [
@@ -1312,8 +1524,8 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.1),
-                border: Border.all(color: accentColor.withOpacity(0.3)),
+                color: accentColor.withValues(alpha: 0.1),
+                border: Border.all(color: accentColor.withValues(alpha: 0.3)),
               ),
               child: Icon(
                 _iconForCategory(bill.category.isNotEmpty ? bill.category : bill.description),
@@ -1322,7 +1534,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            // Name + who paid
+            // Description + split info (left)
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1337,15 +1549,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isYourBill ? 'You paid' : 'They paid',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      color: Color(0xFF8899AA),
+                  if ((bill.splitPercent - 50).abs() > 1) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Split ${bill.splitPercent.round()}/${(100 - bill.splitPercent).round()}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        color: Color(0xFF00E5CC),
+                      ),
                     ),
-                  ),
+                  ],
                   if (bill.notes.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
@@ -1363,30 +1577,59 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-            // Amount + date
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '\$${bill.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: accentColor,
+            // Amount + owed + date (right)
+            Builder(builder: (_) {
+              final owed = isYourBill
+                  ? bill.amount * (100 - bill.splitPercent) / 100
+                  : bill.amount * bill.splitPercent / 100;
+              final owedLabel = isYourBill ? "You're owed:" : 'You owe:';
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '\$${bill.amount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: accentColor,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  DateFormat('MMM d, h:mm a').format(bill.createdAt),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 10,
-                    color: Color(0xFF556677),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$owedLabel ',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          color: Color(0xFF8899AA),
+                        ),
+                      ),
+                      Text(
+                        '\$${owed.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: accentColor,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('MMM d, h:mm a').format(bill.createdAt),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      color: Color(0xFF556677),
+                    ),
+                  ),
+                ],
+              );
+            }),
           ],
         ),
       ),
@@ -1399,17 +1642,17 @@ class _HomeScreenState extends State<HomeScreen> {
     required DateTime date,
     required double remainingBalance,
   }) {
-    final currentUser = FirebaseAuth.instance.currentUser!.uid;
+    final currentUser = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
     final isYou = from == currentUser;
     final who = isYou ? 'You' : 'They';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F1A12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F1A12),
         border: Border(
-          left: BorderSide(color: const Color(0xFF4CAF50), width: 3),
+          left: BorderSide(color: Color(0xFF4CAF50), width: 3),
         ),
       ),
       child: Row(
@@ -1419,8 +1662,8 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withOpacity(0.15),
-              border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
+              color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+              border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
             ),
             child: const Icon(
               Icons.handshake,
@@ -1510,7 +1753,7 @@ class _HomeScreenState extends State<HomeScreen> {
           TextButton(
             onPressed: () async {
               await service.deleteBill(groupId!, bill.id);
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Bill deleted')),
@@ -1541,14 +1784,18 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    await billService.processPendingInvites(user.uid, user.email!);
+    await billService.processPendingInvites(user.email!);
 
     // Refresh groups
     if (mounted) {
-      final groups = await billService.getUserGroupsStream(user.uid).first;
+      final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
       if (groups.isNotEmpty) {
-        setState(() => groupId = groups.first.id);
+        // Prefer a shared group (>1 member) over a solo personal group
+        final sharedGroups = groups.where((g) => g.members.length > 1).toList();
+        final selected = sharedGroups.isNotEmpty ? sharedGroups.first : groups.first;
+        setState(() => groupId = selected.id);
       }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: const Color(0xFF141A22),

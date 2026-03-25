@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
 
@@ -21,14 +23,14 @@ class EmailService {
     required String groupName,
   }) async {
     if (!isConfigured) {
-      print('Email not configured — skipping send');
+      log('Email not configured — skipping send');
       return false;
     }
 
     final smtpServer = gmail(_senderEmail, _senderPassword);
 
     final message = Message()
-      ..from = Address(_senderEmail, 'Spread the Fund')
+      ..from = const Address(_senderEmail, 'Spread the Fund')
       ..recipients.add(toEmail)
       ..subject = '$inviterName invited you to Spread the Fund!'
       ..html = '''
@@ -37,7 +39,7 @@ class EmailService {
           <p><strong>$inviterName</strong> invited you to join the group <strong>"$groupName"</strong>.</p>
           <p>Sign in with <strong>$toEmail</strong> and you'll automatically be added to the group.</p>
           <div style="margin: 24px 0; text-align: center;">
-            <a href="https://drive.google.com/file/d/1gPEfLYm6hBuN-ifnrrQLmuMOa-Tc9tuJ/view?usp=drive_link"
+            <a href="https://github.com/CrowdTypical/spreadthefund/releases"
                style="display: inline-block; padding: 14px 28px; background: #00E5CC; color: #0A0E14;
                       font-family: monospace; font-size: 14px; font-weight: bold; letter-spacing: 2px;
                       text-decoration: none;">
@@ -60,10 +62,10 @@ class EmailService {
 
     try {
       await send(message, smtpServer);
-      print('Invite email sent to $toEmail');
+      log('Invite email sent to $toEmail');
       return true;
     } catch (e) {
-      print('Error sending email: $e');
+      log('Error sending email: $e');
       return false;
     }
   }

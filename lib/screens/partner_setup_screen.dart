@@ -174,7 +174,7 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
       } else {
         // Create a new group first
         final newGroupId = await _billService.createNamedGroup(
-          currentUser.uid,
+          currentUser.email!.toLowerCase(),
           'Shared Group',
         );
         if (newGroupId == null) {
@@ -186,13 +186,13 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
         widget.onGroupCreated(newGroupId);
       }
 
-      // Check if they already have an account — if so, add them directly
-      final existingUid = await _billService.getUserIdByEmail(email);
-      if (existingUid != null) {
-        await _billService.addMemberToGroup(targetGroupId, existingUid);
-      }
+      // Always add by email — no UID lookup needed
+      await _billService.addMemberToGroup(
+        targetGroupId,
+        email.toLowerCase(),
+      );
 
-      // Always store a pending invite (so they auto-join if they sign in later)
+      // Always store a pending invite (tracks the invitation)
       await _billService.createInvite(
         groupId: targetGroupId,
         groupName: groupName,
