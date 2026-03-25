@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,8 +78,28 @@ class SpreadTheFundApp extends StatelessWidget {
               stream: authService.authStateChanges,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.active) {
-                  if (snapshot.data != null) {
-                    return const HomeScreen();
+                  final user = snapshot.data;
+                  if (user != null) {
+                    // Listen to user doc for onboarding status
+                    return StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(user.uid)
+                          .snapshots(),
+                      builder: (context, userSnap) {
+                        if (!userSnap.hasData) {
+                          return const Scaffold(
+                            body: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final data = userSnap.data!.data() as Map<String, dynamic>?;
+                        final username = data?['username'] as String?;
+                        if (username == null || username.isEmpty) {
+                          return const OnboardingScreen();
+                        }
+                        return const HomeScreen();
+                      },
+                    );
                   } else {
                     return const LoginScreen();
                   }

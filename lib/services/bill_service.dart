@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bill.dart';
 import '../models/group.dart';
@@ -27,108 +29,139 @@ class BillService {
       });
       return true;
     } catch (e) {
-      print('Error creating invite: $e');
+      log('Error creating invite: $e');
       return false;
     }
   }
 
-  // Check and process pending invites for a user who just signed in
-  Future<void> processPendingInvites(String userId, String email) async {
+  // Check and process pending invites for a user who just signed in.
+  // Marks invites as accepted and ensures the user's email is in the group.
+  Future<void> processPendingInvites(String email) async {
     try {
-      print('Processing invites for: ${email.toLowerCase()}');
-      // Query only by email to avoid needing a composite index
+      final normalizedEmail = email.toLowerCase();
+      log('Processing invites for: $normalizedEmail');
       final snapshot = await _firestore
           .collection('invites')
-          .where('inviteeEmail', isEqualTo: email.toLowerCase())
+          .where('inviteeEmail', isEqualTo: normalizedEmail)
           .get();
 
-      print('Found ${snapshot.docs.length} invite(s)');
+      log('Found ${snapshot.docs.length} invite(s)');
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final status = data['status'] as String?;
         if (status != 'pending') {
-          print('Skipping invite ${doc.id} — status: $status');
+          log('Skipping invite ${doc.id} — status: $status');
           continue;
         }
-
-        final groupId = data['groupId'] as String;
-        print('Joining group $groupId from invite ${doc.id}');
-
-        // Add user UID to the group
-        await _firestore.collection('groups').doc(groupId).update({
-          'members': FieldValue.arrayUnion([userId]),
-        });
-
-        // Mark invite as accepted
         await doc.reference.update({'status': 'accepted'});
-
-        print('Successfully joined group $groupId');
+        log('Marked invite ${doc.id} as accepted');
       }
     } catch (e) {
-      print('Error processing invites: $e');
+      log('Error processing invites: $e');
+    }
+  }
+
+  // When a user signs in, find every group that has their UID in the
+  // members list and swap it for their email (backwards compat migration).
+  Future<void> migrateUidToEmail(String uid, String email) async {
+    try {
+      final normalizedEmail = email.toLowerCase();
+      log('Migrating UID $uid → email $normalizedEmail in groups');
+
+      final groups = await _firestore
+          .collection('groups')
+          .where('members', arrayContains: uid)
+          .get();
+
+      log('Found ${groups.docs.length} group(s) with UID in members');
+
+      for (final doc in groups.docs) {
+        await doc.reference.update({
+          'members': FieldValue.arrayRemove([uid]),
+        });
+        await doc.reference.update({
+          'members': FieldValue.arrayUnion([normalizedEmail]),
+        });
+        log('Migrated group ${doc.id}: $uid → $normalizedEmail');
+      }
+    } catch (e) {
+      log('Error migrating UID to email: $e');
     }
   }
 
   // ── Groups ───────────────────────────────────────────────────────
 
   // Create a personal group (solo user, partners can be added later)
-  Future<String?> createPersonalGroup(String userId) async {
+  Future<String?> createPersonalGroup(String userEmail) async {
     try {
       final docRef = await _firestore.collection('groups').add({
         'name': 'Personal',
-        'members': [userId],
+        'members': [userEmail.toLowerCase()],
         'createdAt': FieldValue.serverTimestamp(),
-        'createdBy': userId,
+        'createdBy': userEmail.toLowerCase(),
       });
       return docRef.id;
     } catch (e) {
-      print('Error creating personal group: $e');
+      log('Error creating personal group: $e');
       return null;
     }
   }
 
-  // Create a bill group with a partner
-  Future<String?> createBillGroup(String userId, String partnerEmail) async {
+  // Create a bill group with a partner (by email)
+  Future<String?> createBillGroup(String userEmail, String partnerEmail) async {
     try {
       final docRef = await _firestore.collection('groups').add({
         'name': 'Group',
-        'members': [userId, partnerEmail],
+        'members': [userEmail.toLowerCase(), partnerEmail.toLowerCase()],
         'createdAt': FieldValue.serverTimestamp(),
-        'createdBy': userId,
+        'createdBy': userEmail.toLowerCase(),
       });
       return docRef.id;
     } catch (e) {
-      print('Error creating bill group: $e');
+      log('Error creating bill group: $e');
       return null;
     }
   }
 
   // Create a named group
-  Future<String?> createNamedGroup(String userId, String name) async {
+  Future<String?> createNamedGroup(String userEmail, String name) async {
     try {
       final docRef = await _firestore.collection('groups').add({
         'name': name,
-        'members': [userId],
+        'members': [userEmail.toLowerCase()],
         'createdAt': FieldValue.serverTimestamp(),
-        'createdBy': userId,
+        'createdBy': userEmail.toLowerCase(),
       });
       return docRef.id;
     } catch (e) {
-      print('Error creating named group: $e');
+      log('Error creating named group: $e');
       return null;
     }
   }
 
-  // Add a member to an existing group
+  // Add a member to an existing group (by email)
   Future<bool> addMemberToGroup(String groupId, String memberEmail) async {
     try {
       await _firestore.collection('groups').doc(groupId).update({
-        'members': FieldValue.arrayUnion([memberEmail]),
+        'members': FieldValue.arrayUnion([memberEmail.toLowerCase()]),
       });
       return true;
     } catch (e) {
-      print('Error adding member: $e');
+      log('Error adding member: $e');
+      return false;
+    }
+  }
+
+  // Remove a member from a group
+  Future<bool> removeMemberFromGroup(String groupId, String memberEmail) async {
+    try {
+      await _firestore.collection('groups').doc(groupId).update({
+        'members': FieldValue.arrayRemove([memberEmail.toLowerCase()]),
+      });
+      return true;
+    } catch (e) {
+      log('Error removing member: $e');
       return false;
     }
   }
@@ -141,6 +174,7 @@ class BillService {
     required String description,
     required String category,
     String notes = '',
+    double splitPercent = 50.0,
     DateTime? date,
   }) async {
     try {
@@ -150,6 +184,7 @@ class BillService {
         'description': description,
         'category': category,
         'notes': notes,
+        'splitPercent': splitPercent,
         'splitEquallyWith': 'both',
         'createdAt': date != null ? Timestamp.fromDate(date) : FieldValue.serverTimestamp(),
         'settled': false,
@@ -168,7 +203,7 @@ class BillService {
 
       return true;
     } catch (e) {
-      print('Error adding bill: $e');
+      log('Error adding bill: $e');
       return false;
     }
   }
@@ -184,36 +219,53 @@ class BillService {
           .get();
       return snapshot.docs.map((doc) => doc['name'] as String).toList();
     } catch (e) {
-      print('Error getting categories: $e');
+      log('Error getting categories: $e');
       return [];
     }
   }
 
-  // Get group members with their display info
+  // Get group members with their display info.
+  // Members are stored as emails in the group.
   Future<List<Map<String, String>>> getGroupMembers(String groupId) async {
     try {
       final groupDoc = await _firestore.collection('groups').doc(groupId).get();
       final members = List<String>.from(groupDoc.data()?['members'] ?? []);
       final result = <Map<String, String>>[];
-      for (final uid in members) {
-        final userDoc = await _firestore.collection('users').doc(uid).get();
-        if (userDoc.exists) {
-          final data = userDoc.data()!;
-          final name = (data['username'] as String?)?.isNotEmpty == true
-              ? data['username'] as String
-              : data['displayName'] as String? ?? data['email'] as String? ?? uid;
+      for (final member in members) {
+        final email = member.toLowerCase();
+        // Look up user doc by email
+        final userSnap = await _firestore
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+        if (userSnap.docs.isNotEmpty) {
+          final data = userSnap.docs.first.data();
+          final username = data['username'] as String?;
+          final displayName = data['displayName'] as String?;
+          final name = (username != null && username.isNotEmpty)
+              ? username
+              : (displayName != null && displayName.isNotEmpty)
+                  ? displayName
+                  : email.split('@').first;
           result.add({
-            'uid': uid,
+            'uid': email,
             'name': name,
-            'email': data['email'] as String? ?? '',
+            'email': email,
           });
         } else {
-          result.add({'uid': uid, 'name': uid, 'email': ''});
+          // No account yet — show email as pending
+          result.add({
+            'uid': email,
+            'name': email,
+            'email': email,
+            'pending': 'true',
+          });
         }
       }
       return result;
     } catch (e) {
-      print('Error getting group members: $e');
+      log('Error getting group members: $e');
       return [];
     }
   }
@@ -233,11 +285,11 @@ class BillService {
     });
   }
 
-  // Get groups for a user
-  Stream<List<Group>> getUserGroupsStream(String userId) {
+  // Get groups for a user (by email)
+  Stream<List<Group>> getUserGroupsStream(String userEmail) {
     return _firestore
         .collection('groups')
-        .where('members', arrayContains: userId)
+        .where('members', arrayContains: userEmail.toLowerCase())
         .snapshots()
         .map((snapshot) {
       return snapshot.docs
@@ -246,19 +298,20 @@ class BillService {
     });
   }
 
-  // Get user by email
+  // Get user by email (case-insensitive)
   Future<String?> getUserIdByEmail(String email) async {
     try {
-      print('Searching for user with email: $email');
+      final normalizedEmail = email.toLowerCase();
+      log('Searching for user with email: $normalizedEmail');
       final snapshot = await _firestore
           .collection('users')
-          .where('email', isEqualTo: email)
+          .where('email', isEqualTo: normalizedEmail)
           .limit(1)
           .get();
 
-      print('Query returned ${snapshot.docs.length} results');
+      log('Query returned ${snapshot.docs.length} results');
       for (var doc in snapshot.docs) {
-        print('Found user doc: ${doc.id} => ${doc.data()}');
+        log('Found user doc: ${doc.id} => ${doc.data()}');
       }
 
       if (snapshot.docs.isNotEmpty) {
@@ -266,10 +319,12 @@ class BillService {
       }
       return null;
     } catch (e) {
-      print('Error getting user by email: $e');
+      log('Error getting user by email: $e');
       return null;
     }
   }
+
+
 
   // Rename a group
   Future<bool> renameGroup(String groupId, String newName) async {
@@ -279,7 +334,7 @@ class BillService {
       });
       return true;
     } catch (e) {
-      print('Error renaming group: $e');
+      log('Error renaming group: $e');
       return false;
     }
   }
@@ -311,7 +366,39 @@ class BillService {
       await groupRef.delete();
       return true;
     } catch (e) {
-      print('Error deleting group: $e');
+      log('Error deleting group: $e');
+      return false;
+    }
+  }
+
+  // Update a bill
+  Future<bool> updateBill({
+    required String groupId,
+    required String billId,
+    required String paidBy,
+    required double amount,
+    required String description,
+    required String category,
+    String notes = '',
+    double splitPercent = 50.0,
+  }) async {
+    try {
+      await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('bills')
+          .doc(billId)
+          .update({
+        'paidBy': paidBy,
+        'amount': amount,
+        'description': description,
+        'category': category,
+        'notes': notes,
+        'splitPercent': splitPercent,
+      });
+      return true;
+    } catch (e) {
+      log('Error updating bill: $e');
       return false;
     }
   }
@@ -327,7 +414,7 @@ class BillService {
           .delete();
       return true;
     } catch (e) {
-      print('Error deleting bill: $e');
+      log('Error deleting bill: $e');
       return false;
     }
   }
@@ -348,7 +435,7 @@ class BillService {
       });
       return true;
     } catch (e) {
-      print('Error settling up: $e');
+      log('Error settling up: $e');
       return false;
     }
   }

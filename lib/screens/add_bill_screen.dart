@@ -51,6 +51,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
   bool _showCategories = false;
   bool _showAllCategories = false;
   bool _showCustomInput = false;
+  double _splitPercent = 50.0;
+  bool _splitExpanded = false;
 
   List<String> _sortedCategories = [];
   List<Map<String, String>> _members = [];
@@ -59,7 +61,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
   void initState() {
     super.initState();
     _billService = BillService();
-    _paidBy = FirebaseAuth.instance.currentUser!.uid;
+    _paidBy = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
+    _amountController.addListener(() => setState(() {}));
     _loadData();
   }
 
@@ -95,18 +98,19 @@ class _AddBillScreenState extends State<AddBillScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           children: [
             _buildCategorySelector(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             _buildAmountField(),
-            const SizedBox(height: 16),
+            _buildSplitSlider(),
+            const SizedBox(height: 10),
             _buildWhoPaidDropdown(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             _buildNotesField(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             _buildDatePicker(),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
             _buildAddButton(),
           ],
         ),
@@ -267,7 +271,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF00E5CC).withOpacity(0.15)
+                        ? const Color(0xFF00E5CC).withValues(alpha: 0.15)
                         : const Color(0xFF0A0E14),
                     border: Border.all(
                       color: isSelected
@@ -398,8 +402,194 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
   // ── WHO PAID DROPDOWN ──────────────────────────────────────
 
+  Widget _buildSplitSlider() {
+    final amount = double.tryParse(_amountController.text) ?? 0;
+    if (amount <= 0) return const SizedBox.shrink();
+
+    final payerShare = amount * _splitPercent / 100;
+    final otherShare = amount - payerShare;
+    final splitLabel = '${_splitPercent.round()}/${(100 - _splitPercent).round()}';
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      child: Container(
+        margin: const EdgeInsets.only(top: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141A22),
+          border: Border.all(
+            color: _splitExpanded
+                ? const Color(0xFF00E5CC)
+                : const Color(0xFF1E2A35),
+          ),
+        ),
+        child: Column(
+          children: [
+            // ── Collapsed header (always visible) ──
+            GestureDetector(
+              onTap: () => setState(() => _splitExpanded = !_splitExpanded),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                color: Colors.transparent,
+                child: Row(
+                  children: [
+                    const Icon(Icons.pie_chart_outline,
+                        color: Color(0xFF8899AA), size: 18),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'SPLIT',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        letterSpacing: 1,
+                        color: Color(0xFF8899AA),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      splitLabel,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: (_splitPercent - 50).abs() < 1
+                            ? const Color(0xFFE0E0E0)
+                            : const Color(0xFF00E5CC),
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      _splitExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: const Color(0xFF8899AA),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Expanded details ──
+            if (_splitExpanded) ...[
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Column(
+                  children: [
+                    // Payer / Other labels with amounts
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${_splitPercent.round()}%  •  \$${payerShare.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF00E5CC),
+                          ),
+                        ),
+                        Text(
+                          '\$${otherShare.toStringAsFixed(2)}  •  ${(100 - _splitPercent).round()}%',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFF4C5E),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Slider
+                    SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: const Color(0xFF00E5CC),
+                        inactiveTrackColor: const Color(0xFFFF4C5E).withValues(alpha: 0.4),
+                        thumbColor: const Color(0xFF00E5CC),
+                        overlayColor: const Color(0xFF00E5CC).withValues(alpha: 0.15),
+                        trackHeight: 6,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                      ),
+                      child: Slider(
+                        value: _splitPercent,
+                        min: 5,
+                        max: 95,
+                        divisions: 18,
+                        onChanged: (val) => setState(() => _splitPercent = val),
+                      ),
+                    ),
+                    // Quick-select buttons
+                    Row(
+                      children: [
+                        _splitPresetButton('70/30', 70),
+                        const SizedBox(width: 6),
+                        _splitPresetButton('50/50', 50),
+                        const SizedBox(width: 6),
+                        _splitPresetButton('30/70', 30),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _splitPresetButton(String label, double value) {
+    final isActive = (_splitPercent - value).abs() < 1;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _splitPercent = value;
+            // Auto-switch Who Paid for the full-pay presets
+            final currentEmail = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
+            if (value >= 100) {
+              _paidBy = currentEmail;
+            } else if (value <= 0 && _members.length >= 2) {
+              final other = _members.firstWhere(
+                (m) => m['uid'] != currentEmail,
+                orElse: () => _members.first,
+              );
+              _paidBy = other['uid'];
+            }
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isActive
+                ? const Color(0xFF00E5CC).withValues(alpha: 0.15)
+                : Colors.transparent,
+            border: Border.all(
+              color: isActive
+                  ? const Color(0xFF00E5CC)
+                  : const Color(0xFF1E2A35),
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+              color: isActive
+                  ? const Color(0xFF00E5CC)
+                  : const Color(0xFF8899AA),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildWhoPaidDropdown() {
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentEmail = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -421,7 +611,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _paidBy,
+            key: ValueKey(_paidBy),
+            initialValue: _members.any((m) => m['uid'] == _paidBy) ? _paidBy : null,
             dropdownColor: const Color(0xFF141A22),
             style: const TextStyle(
                 fontFamily: 'monospace', color: Color(0xFFE0E0E0)),
@@ -439,26 +630,69 @@ class _AddBillScreenState extends State<AddBillScreen> {
               contentPadding:
                   EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
+            isExpanded: true,
+            selectedItemBuilder: (context) {
+              return _members.isEmpty
+                  ? []
+                  : _members.map((m) {
+                      final isMe = m['uid'] == currentEmail;
+                      final email = m['email'] ?? '';
+                      final showEmail = email.isNotEmpty && email != m['name'];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            isMe
+                                ? '${m['name']!.toUpperCase()} (YOU)'
+                                : m['name']!.toUpperCase(),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 14,
+                              color: Color(0xFFE0E0E0),
+                            ),
+                          ),
+                          if (showEmail)
+                            Text(
+                              email,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                                color: Color(0xFF556677),
+                              ),
+                            ),
+                        ],
+                      );
+                    }).toList();
+            },
             items: _members.isEmpty
-                ? [
-                    DropdownMenuItem(
-                      value: currentUid,
-                      child: Text(
-                        (FirebaseAuth.instance.currentUser!.displayName ?? 'You')
-                            .toUpperCase(),
-                        style: const TextStyle(fontFamily: 'monospace'),
-                      ),
-                    ),
-                  ]
+                ? []
                 : _members.map((m) {
-                    final isMe = m['uid'] == currentUid;
+                    final isMe = m['uid'] == currentEmail;
+                    final showEmail = m['email']!.isNotEmpty && m['email'] != m['name'];
                     return DropdownMenuItem(
                       value: m['uid'],
-                      child: Text(
-                        isMe
-                            ? '${m['name']!.toUpperCase()} (YOU)'
-                            : m['name']!.toUpperCase(),
-                        style: const TextStyle(fontFamily: 'monospace'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isMe
+                                ? '${m['name']!.toUpperCase()} (YOU)'
+                                : m['name']!.toUpperCase(),
+                            style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+                          ),
+                          if (showEmail)
+                            Text(
+                              m['email']!,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                                color: Color(0xFF556677),
+                              ),
+                            ),
+                        ],
                       ),
                     );
                   }).toList(),
@@ -664,6 +898,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
         description: _selectedCategory!,
         category: _selectedCategory!,
         notes: _notesController.text.trim(),
+        splitPercent: _splitPercent,
         date: _selectedDate,
       );
 

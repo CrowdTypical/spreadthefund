@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -28,32 +30,31 @@ class AuthService {
       final UserCredential userCredential =
           await _firebaseAuth.signInWithCredential(credential);
 
-      // Create user document in Firestore if it doesn't exist
-      final userDoc = _firestore.collection('users').doc(userCredential.user!.uid);
+      final uid = userCredential.user!.uid;
+      final email = userCredential.user!.email?.toLowerCase();
+
+      // Always merge user data so email/displayName stay up to date
+      final userDoc = _firestore.collection('users').doc(uid);
       final exists = await userDoc.get();
 
-      if (!exists.exists) {
-        await userDoc.set({
-          'uid': userCredential.user!.uid,
-          'email': userCredential.user!.email,
-          'displayName': userCredential.user!.displayName,
-          'photoUrl': userCredential.user!.photoURL,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
+      await userDoc.set({
+        'uid': uid,
+        'email': email,
+        'displayName': userCredential.user!.displayName,
+        'photoUrl': userCredential.user!.photoURL,
+        if (!exists.exists) 'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-      // Auto-join any groups this user was invited to (by email)
-      final email = userCredential.user!.email;
       if (email != null) {
-        await _billService.processPendingInvites(
-          userCredential.user!.uid,
-          email,
-        );
+        // Migrate any old UID-based group memberships to email
+        await _billService.migrateUidToEmail(uid, email);
+        // Mark pending invites as accepted
+        await _billService.processPendingInvites(email);
       }
 
-      return userCredential.user!.uid;
+      return email;
     } catch (e) {
-      print('Error signing in with Google: $e');
+      log('Error signing in with Google: $e');
       return null;
     }
   }
@@ -67,9 +68,20 @@ class AuthService {
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
-      print('Error updating username: $e');
+      log('Error updating username: $e');
       return false;
     }
+  }
+
+  // Check if the user still needs to set their name (onboarding)
+  Future<bool> needsOnboarding() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return false;
+    final doc = await _firestore.collection('users').doc(user.uid).get();
+    if (!doc.exists) return true;
+    final data = doc.data()!;
+    final username = data['username'] as String?;
+    return username == null || username.isEmpty;
   }
 
   Stream<DocumentSnapshot> get userDocStream {

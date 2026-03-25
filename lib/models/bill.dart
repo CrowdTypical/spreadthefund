@@ -7,6 +7,7 @@ class Bill {
   final String description;
   final String category;
   final String notes;
+  final double splitPercent;
   final DateTime createdAt;
   final bool settled;
 
@@ -17,6 +18,7 @@ class Bill {
     required this.description,
     required this.category,
     this.notes = '',
+    this.splitPercent = 50.0,
     required this.createdAt,
     required this.settled,
   });
@@ -29,6 +31,7 @@ class Bill {
       description: map['description'] as String,
       category: map['category'] as String? ?? '',
       notes: map['notes'] as String? ?? '',
+      splitPercent: (map['splitPercent'] as num?)?.toDouble() ?? 50.0,
       createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),

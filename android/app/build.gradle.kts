@@ -39,6 +39,13 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    applicationVariants.all {
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
+                .outputFileName = "spreadthefundsv1.apk"
+        }
+    }
 }
 
 dependencies {
