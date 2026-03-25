@@ -14,7 +14,7 @@ import 'bill_detail_screen.dart';
 import 'group_details_screen.dart';
 import 'partner_setup_screen.dart';
 
-const String appVersion = 'v1.0.1';
+const String appVersion = 'v1.0.2';
 const String releasesUrl = 'https://github.com/CrowdTypical/spreadthefund/releases';
 
 const _categoryIcons = <String, IconData>{
@@ -416,6 +416,29 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
+          // Pull-to-refresh hint
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.arrow_downward, color: Color(0xFF556677), size: 12),
+                SizedBox(width: 6),
+                Text(
+                  'PULL TO CHECK INVITES',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 9,
+                    letterSpacing: 1,
+                    color: Color(0xFF556677),
+                  ),
+                ),
+                SizedBox(width: 6),
+                Icon(Icons.arrow_downward, color: Color(0xFF556677), size: 12),
+              ],
+            ),
+          ),
+
           // Groups List
           Expanded(
             child: user == null
@@ -446,93 +469,99 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       }
 
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        itemCount: groups.length,
-                        itemBuilder: (context, index) {
-                          final group = groups[index];
-                          final isSelected = group.id == groupId;
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 2),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFF00E5CC).withValues(alpha: 0.1)
-                                  : Colors.transparent,
-                              border: Border(
-                                left: BorderSide(
-                                  color: isSelected
-                                      ? const Color(0xFF00E5CC)
-                                      : Colors.transparent,
-                                  width: 3,
-                                ),
-                              ),
-                            ),
-                            child: ListTile(
-                              dense: true,
-                              leading: Icon(
-                                group.members.length > 1
-                                    ? Icons.group
-                                    : Icons.person,
+                      return RefreshIndicator(
+                        color: const Color(0xFF00E5CC),
+                        backgroundColor: const Color(0xFF141A22),
+                        onRefresh: _refreshInvites,
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          itemCount: groups.length,
+                          itemBuilder: (context, index) {
+                            final group = groups[index];
+                            final isSelected = group.id == groupId;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 2),
+                              decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFF00E5CC)
-                                    : const Color(0xFF8899AA),
-                                size: 20,
+                                    ? const Color(0xFF00E5CC).withValues(alpha: 0.1)
+                                    : Colors.transparent,
+                                border: Border(
+                                  left: BorderSide(
+                                    color: isSelected
+                                        ? const Color(0xFF00E5CC)
+                                        : Colors.transparent,
+                                    width: 3,
+                                  ),
+                                ),
                               ),
-                              title: Text(
-                                group.name.toUpperCase(),
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
+                              child: ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  group.members.length > 1
+                                      ? Icons.group
+                                      : Icons.person,
                                   color: isSelected
                                       ? const Color(0xFF00E5CC)
-                                      : const Color(0xFFE0E0E0),
+                                      : const Color(0xFF8899AA),
+                                  size: 20,
                                 ),
-                              ),
-                              subtitle: Text(
-                                '${group.members.length} member${group.members.length != 1 ? 's' : ''}',
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 10,
-                                  color: Color(0xFF556677),
-                                ),
-                              ),
-                              onTap: () {
-                                setState(() => groupId = group.id);
-                                Navigator.pop(context);
-                              },
-                              onLongPress: () async {
-                                final messenger = ScaffoldMessenger.of(context);
-                                Navigator.pop(context); // close drawer
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => GroupDetailsScreen(groupId: group.id),
+                                title: Text(
+                                  group.name.toUpperCase(),
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                    color: isSelected
+                                        ? const Color(0xFF00E5CC)
+                                        : const Color(0xFFE0E0E0),
                                   ),
-                                );
-                                if (result == 'deleted' && mounted) {
-                                  final user = FirebaseAuth.instance.currentUser;
-                                  if (user != null) {
-                                    final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
-                                    setState(() {
-                                      groupId = groups.isNotEmpty ? groups.first.id : null;
-                                    });
-                                  }
-                                  messenger.showSnackBar(
-                                    const SnackBar(
-                                      backgroundColor: Color(0xFF141A22),
-                                      content: Text(
-                                        'Group deleted',
-                                        style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
-                                      ),
+                                ),
+                                subtitle: Text(
+                                  '${group.members.length} member${group.members.length != 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                    color: Color(0xFF556677),
+                                  ),
+                                ),
+                                onTap: () {
+                                  setState(() => groupId = group.id);
+                                  Navigator.pop(context);
+                                },
+                                onLongPress: () async {
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  Navigator.pop(context); // close drawer
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => GroupDetailsScreen(groupId: group.id),
                                     ),
                                   );
-                                }
-                              },
-                            ),
-                          );
-                        },
+                                  if (result == 'deleted' && mounted) {
+                                    final user = FirebaseAuth.instance.currentUser;
+                                    if (user != null) {
+                                      final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
+                                      setState(() {
+                                        groupId = groups.isNotEmpty ? groups.first.id : null;
+                                      });
+                                    }
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        backgroundColor: Color(0xFF141A22),
+                                        content: Text(
+                                          'Group deleted',
+                                          style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
@@ -548,9 +577,9 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.refresh, color: Color(0xFF00E5CC), size: 20),
+                  leading: const Icon(Icons.feedback_outlined, color: Color(0xFF00E5CC), size: 20),
                   title: const Text(
-                    'CHECK FOR INVITES',
+                    'SEND FEEDBACK',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 12,
@@ -559,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Color(0xFF00E5CC),
                     ),
                   ),
-                  onTap: _checkForInvites,
+                  onTap: _showFeedbackDialog,
                 ),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Color(0xFF8899AA), size: 20),
@@ -578,16 +607,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.only(bottom: 4),
-            child: Text(
-              appVersion,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 10,
-                letterSpacing: 1,
-                color: Color(0xFF556677),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: GestureDetector(
+              onTap: _showAboutApp,
+              child: const Text(
+                appVersion,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  color: Color(0xFF556677),
+                ),
               ),
             ),
           ),
@@ -1767,30 +1799,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _checkForInvites() async {
+  Future<void> _refreshInvites() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || user.email == null) return;
 
-    Navigator.pop(context); // close the drawer
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        backgroundColor: Color(0xFF141A22),
-        content: Text(
-          'Checking for invites...',
-          style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
-        ),
-        duration: Duration(seconds: 1),
-      ),
-    );
-
     await billService.processPendingInvites(user.email!);
 
-    // Refresh groups
     if (mounted) {
       final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
       if (groups.isNotEmpty) {
-        // Prefer a shared group (>1 member) over a solo personal group
         final sharedGroups = groups.where((g) => g.members.length > 1).toList();
         final selected = sharedGroups.isNotEmpty ? sharedGroups.first : groups.first;
         setState(() => groupId = selected.id);
@@ -1806,6 +1823,272 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
+  }
+
+  void _showFeedbackDialog() {
+    final feedbackController = TextEditingController();
+    String feedbackType = 'suggestion';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF141A22),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          title: const Text(
+            'SEND FEEDBACK',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              color: Color(0xFF00E5CC),
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'TYPE',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    letterSpacing: 1,
+                    color: Color(0xFF8899AA),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _feedbackTypeChip('suggestion', 'SUGGESTION', feedbackType, (val) {
+                      setDialogState(() => feedbackType = val);
+                    }),
+                    const SizedBox(width: 8),
+                    _feedbackTypeChip('bug', 'BUG', feedbackType, (val) {
+                      setDialogState(() => feedbackType = val);
+                    }),
+                    const SizedBox(width: 8),
+                    _feedbackTypeChip('other', 'OTHER', feedbackType, (val) {
+                      setDialogState(() => feedbackType = val);
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: feedbackController,
+                  maxLines: 5,
+                  minLines: 3,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    color: Color(0xFFE0E0E0),
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: 'Describe your feedback...',
+                    hintStyle: TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFF455566),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: Color(0xFF00E5CC)),
+                    ),
+                    filled: true,
+                    fillColor: Color(0xFF0D1117),
+                    contentPadding: EdgeInsets.all(12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'CANCEL',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  letterSpacing: 1,
+                  color: Color(0xFF8899AA),
+                ),
+              ),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                final text = feedbackController.text.trim();
+                if (text.isEmpty) return;
+                Navigator.pop(ctx);
+                _submitFeedback(feedbackType, text);
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF00E5CC)),
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+              ),
+              child: const Text(
+                'SEND',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                  color: Color(0xFF00E5CC),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _feedbackTypeChip(String value, String label, String current, ValueChanged<String> onTap) {
+    final isActive = current == value;
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive
+              ? const Color(0xFF00E5CC).withValues(alpha: 0.15)
+              : Colors.transparent,
+          border: Border.all(
+            color: isActive
+                ? const Color(0xFF00E5CC)
+                : const Color(0xFF1E2A35),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: isActive
+                ? const Color(0xFF00E5CC)
+                : const Color(0xFF8899AA),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitFeedback(String type, String body) async {
+    final user = FirebaseAuth.instance.currentUser;
+    // Save feedback to Firestore for tracking
+    await FirebaseFirestore.instance.collection('feedback').add({
+      'type': type,
+      'body': body,
+      'email': user?.email,
+      'appVersion': appVersion,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFF141A22),
+          content: Text(
+            'Feedback sent — thank you!',
+            style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showAboutApp() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141A22),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF00E5CC).withValues(alpha: 0.3)),
+              ),
+              child: const Icon(Icons.attach_money, color: Color(0xFF00E5CC), size: 36),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'SPREAD THE FUND',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                color: Color(0xFF00E5CC),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              appVersion,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Color(0xFF8899AA),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              height: 1,
+              color: const Color(0xFF1E2A35),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Made by Jason Green',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 13,
+                color: Color(0xFFE0E0E0),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const SelectableText(
+              'github.com/CrowdTypical/spreadthefund',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: Color(0xFF00E5CC),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'A bill-splitting app built with\nFlutter & Firebase',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: Color(0xFF556677),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'CLOSE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+                color: Color(0xFF8899AA),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout() async {
