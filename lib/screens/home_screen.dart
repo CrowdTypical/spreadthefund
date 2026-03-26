@@ -281,45 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openReleasesPage() async {
-    // Use url_launcher if available, otherwise show the URL
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141A22),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        title: const Text(
-          'DOWNLOAD UPDATE',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-            color: Color(0xFF00E5CC),
-          ),
-        ),
-        content: const SelectableText(
-          releasesUrl,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 12,
-            color: Color(0xFF00E5CC),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'OK',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                letterSpacing: 1,
-                color: Color(0xFF00E5CC),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    await launchUrl(Uri.parse(releasesUrl), mode: LaunchMode.externalApplication);
   }
 
   void _invitePartner() {
