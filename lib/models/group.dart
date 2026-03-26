@@ -6,6 +6,9 @@ class Group {
   final List<dynamic> members;
   final DateTime createdAt;
   final String createdBy;
+  final String icon;
+  final String color;
+  final String? customImage;
 
   Group({
     required this.id,
@@ -13,6 +16,9 @@ class Group {
     required this.members,
     required this.createdAt,
     required this.createdBy,
+    this.icon = 'group',
+    this.color = '00E5CC',
+    this.customImage,
   });
 
   factory Group.fromMap(Map<String, dynamic> map, String id) {
@@ -24,6 +30,9 @@ class Group {
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
       createdBy: map['createdBy'] as String,
+      icon: map['icon'] as String? ?? 'group',
+      color: map['color'] as String? ?? '00E5CC',
+      customImage: map['customImage'] as String?,
     );
   }
 }

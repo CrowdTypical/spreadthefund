@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/bill_service.dart';
 import '../models/group.dart';
 
@@ -180,6 +182,416 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static const _groupIcons = <String, IconData>{
+    'group': Icons.group,
+    'person': Icons.person,
+    'home': Icons.home,
+    'favorite': Icons.favorite,
+    'star': Icons.star,
+    'rocket': Icons.rocket_launch,
+    'pet': Icons.pets,
+    'music': Icons.music_note,
+    'game': Icons.sports_esports,
+    'travel': Icons.flight,
+    'food': Icons.restaurant,
+    'coffee': Icons.coffee,
+    'fitness': Icons.fitness_center,
+    'school': Icons.school,
+    'work': Icons.work,
+    'beach': Icons.beach_access,
+    'fire': Icons.local_fire_department,
+    'diamond': Icons.diamond,
+    'bolt': Icons.bolt,
+    'palette': Icons.palette,
+    'camera': Icons.camera_alt,
+    'cake': Icons.cake,
+    'car': Icons.directions_car,
+    'bike': Icons.pedal_bike,
+  };
+
+  static const _groupColors = <String, Color>{
+    '00E5CC': Color(0xFF00E5CC),
+    'FF6B9D': Color(0xFFFF6B9D),
+    '7B68EE': Color(0xFF7B68EE),
+    'FFA726': Color(0xFFFFA726),
+    '42A5F5': Color(0xFF42A5F5),
+    'EF5350': Color(0xFFEF5350),
+    '66BB6A': Color(0xFF66BB6A),
+    'FFEE58': Color(0xFFFFEE58),
+    'AB47BC': Color(0xFFAB47BC),
+    'FF7043': Color(0xFFFF7043),
+    '26C6DA': Color(0xFF26C6DA),
+    'EC407A': Color(0xFFEC407A),
+  };
+
+  IconData _groupIcon(String key) => _groupIcons[key] ?? Icons.group;
+  Color _groupColor(String hex) => _groupColors[hex] ?? const Color(0xFF00E5CC);
+
+  Future<String?> _pickAndCropImage(Color accent) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 70,
+    );
+    if (picked == null) return null;
+
+    final bytes = await picked.readAsBytes();
+    final base64Str = base64Encode(bytes);
+
+    if (!mounted) return null;
+
+    String? result;
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        final transformController = TransformationController();
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0D1117),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          title: Text(
+            'CROP IMAGE',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              color: accent,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Pinch to zoom, drag to move',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  color: Color(0xFF8899AA),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  border: Border.all(color: accent, width: 2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: InteractiveViewer(
+                    transformationController: transformController,
+                    minScale: 1.0,
+                    maxScale: 5.0,
+                    child: Image.memory(
+                      Uint8List.fromList(bytes),
+                      fit: BoxFit.cover,
+                      width: 200,
+                      height: 200,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Preview shows final crop area',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  letterSpacing: 1,
+                  color: Color(0xFF556677),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'CANCEL',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  letterSpacing: 1,
+                  color: Color(0xFF8899AA),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                result = base64Str;
+                Navigator.pop(ctx);
+              },
+              child: Text(
+                'USE IMAGE',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  letterSpacing: 1,
+                  color: accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result;
+  }
+
+  void _showAppearanceDialog() {
+    if (_group == null) return;
+    var selectedIcon = _group!.icon;
+    var selectedColor = _group!.color;
+    String? pendingImage = _group!.customImage;
+    var clearImage = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final accent = _groupColor(selectedColor);
+          return AlertDialog(
+            backgroundColor: const Color(0xFF141A22),
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            title: const Text(
+              'CHANGE APPEARANCE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                letterSpacing: 2,
+                color: Color(0xFFE0E0E0),
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'GROUP IMAGE',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.1),
+                          border: Border.all(color: accent.withValues(alpha: 0.3)),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: pendingImage != null && pendingImage!.isNotEmpty
+                            ? Image.memory(
+                                Uint8List.fromList(base64Decode(pendingImage!)),
+                                fit: BoxFit.cover,
+                                width: 48,
+                                height: 48,
+                                errorBuilder: (_, __, ___) =>
+                                    Icon(_groupIcon(selectedIcon), color: accent, size: 24),
+                              )
+                            : Icon(_groupIcon(selectedIcon), color: accent, size: 24),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            GestureDetector(
+                              onTap: () async {
+                                final result = await _pickAndCropImage(accent);
+                                if (result != null) {
+                                  setDialogState(() {
+                                    pendingImage = result;
+                                    clearImage = false;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: accent),
+                                ),
+                                child: Text(
+                                  pendingImage != null && pendingImage!.isNotEmpty
+                                      ? 'CHANGE IMAGE'
+                                      : 'UPLOAD IMAGE',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 11,
+                                    letterSpacing: 1,
+                                    color: accent,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (pendingImage != null && pendingImage!.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              GestureDetector(
+                                onTap: () => setDialogState(() {
+                                  pendingImage = null;
+                                  clearImage = true;
+                                }),
+                                child: const Text(
+                                  'REMOVE',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                    letterSpacing: 1,
+                                    color: Color(0xFFFF4C5E),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'ICON',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Used when no image is set',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 9,
+                      color: Color(0xFF556677),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _groupIcons.entries.map((e) {
+                      final isSel = e.key == selectedIcon;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedIcon = e.key),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: isSel ? accent.withValues(alpha: 0.15) : Colors.transparent,
+                            border: Border.all(
+                              color: isSel ? accent : const Color(0xFF1E2A35),
+                            ),
+                          ),
+                          child: Icon(e.value, color: isSel ? accent : const Color(0xFF556677), size: 18),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'COLOR',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _groupColors.entries.map((e) {
+                      final isSel = e.key == selectedColor;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedColor = e.key),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: e.value.withValues(alpha: 0.25),
+                            border: Border.all(
+                              color: isSel ? Colors.white : e.value.withValues(alpha: 0.4),
+                              width: isSel ? 2 : 1,
+                            ),
+                          ),
+                          child: isSel
+                              ? Icon(Icons.check, color: e.value, size: 16)
+                              : null,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'CANCEL',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFF8899AA),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final success = await _billService.updateGroupAppearance(
+                    widget.groupId,
+                    icon: selectedIcon,
+                    color: selectedColor,
+                    customImage: (pendingImage != null && !clearImage) ? pendingImage : null,
+                    clearImage: clearImage,
+                  );
+                  if (mounted && success) {
+                    _loadData(); // Refresh to show changes
+                  }
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFF141A22),
+                        content: Text(
+                          success ? 'Appearance updated' : 'Error updating appearance',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: success ? const Color(0xFF00E5CC) : const Color(0xFFFF4C5E),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: const Text(
+                  'SAVE',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFF00E5CC),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -513,6 +925,29 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                     const SizedBox(height: 24),
 
                     // ── ACTIONS ──
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _showAppearanceDialog,
+                        icon: const Icon(Icons.palette, size: 18),
+                        label: const Text(
+                          'CHANGE APPEARANCE',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF00E5CC),
+                          side: const BorderSide(color: Color(0xFF00E5CC)),
+                          shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(

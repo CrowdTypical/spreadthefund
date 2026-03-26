@@ -100,6 +100,8 @@ class BillService {
         'members': [userEmail.toLowerCase()],
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': userEmail.toLowerCase(),
+        'icon': 'person',
+        'color': '00E5CC',
       });
       return docRef.id;
     } catch (e) {
@@ -125,13 +127,15 @@ class BillService {
   }
 
   // Create a named group
-  Future<String?> createNamedGroup(String userEmail, String name) async {
+  Future<String?> createNamedGroup(String userEmail, String name, {String icon = 'group', String color = '00E5CC'}) async {
     try {
       final docRef = await _firestore.collection('groups').add({
         'name': name,
         'members': [userEmail.toLowerCase()],
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': userEmail.toLowerCase(),
+        'icon': icon,
+        'color': color,
       });
       return docRef.id;
     } catch (e) {
@@ -339,6 +343,23 @@ class BillService {
     }
   }
 
+  // Update group icon and color
+  Future<bool> updateGroupAppearance(String groupId, {String? icon, String? color, String? customImage, bool clearImage = false}) async {
+    try {
+      final data = <String, dynamic>{};
+      if (icon != null) data['icon'] = icon;
+      if (color != null) data['color'] = color;
+      if (customImage != null) data['customImage'] = customImage;
+      if (clearImage) data['customImage'] = FieldValue.delete();
+      if (data.isEmpty) return true;
+      await _firestore.collection('groups').doc(groupId).update(data);
+      return true;
+    } catch (e) {
+      log('Error updating group appearance: $e');
+      return false;
+    }
+  }
+
   // Delete a group and all its subcollections
   Future<bool> deleteGroup(String groupId) async {
     try {
@@ -448,5 +469,70 @@ class BillService {
         .collection('settlements')
         .orderBy('settledAt', descending: true)
         .snapshots();
+  }
+
+  /// Delete all data associated with a user:
+  /// - Remove from groups (delete group if sole member)
+  /// - Delete invites (sent and received)
+  /// - Delete feedback
+  /// - Delete user document
+  Future<bool> deleteAllUserData(String email, String uid) async {
+    try {
+      final normalizedEmail = email.toLowerCase();
+
+      // 1. Handle groups
+      final groupsSnap = await _firestore
+          .collection('groups')
+          .where('members', arrayContains: normalizedEmail)
+          .get();
+
+      for (final doc in groupsSnap.docs) {
+        final members = List<String>.from(doc.data()['members'] ?? []);
+        if (members.length <= 1) {
+          // Sole member — delete the entire group and subcollections
+          await deleteGroup(doc.id);
+        } else {
+          // Remove user from the group
+          await doc.reference.update({
+            'members': FieldValue.arrayRemove([normalizedEmail]),
+          });
+        }
+      }
+
+      // 2. Delete invites where user is invitee
+      final invitesReceived = await _firestore
+          .collection('invites')
+          .where('inviteeEmail', isEqualTo: normalizedEmail)
+          .get();
+      for (final doc in invitesReceived.docs) {
+        await doc.reference.delete();
+      }
+
+      // 3. Delete invites where user is inviter
+      final invitesSent = await _firestore
+          .collection('invites')
+          .where('inviterUid', isEqualTo: uid)
+          .get();
+      for (final doc in invitesSent.docs) {
+        await doc.reference.delete();
+      }
+
+      // 4. Delete feedback submitted by user
+      final feedbackSnap = await _firestore
+          .collection('feedback')
+          .where('email', isEqualTo: normalizedEmail)
+          .get();
+      for (final doc in feedbackSnap.docs) {
+        await doc.reference.delete();
+      }
+
+      // 5. Delete user document
+      await _firestore.collection('users').doc(uid).delete();
+
+      return true;
+    } catch (e) {
+      log('Error deleting all user data: $e');
+      return false;
+    }
   }
 }

@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_service.dart';
 import '../services/bill_service.dart';
 import '../models/bill.dart';
@@ -32,6 +35,58 @@ IconData _iconForCategory(String name) {
   return _categoryIcons[name.toLowerCase()] ?? Icons.receipt_long;
 }
 
+// ── Group icon palette ──
+const _groupIcons = <String, IconData>{
+  'group': Icons.group,
+  'person': Icons.person,
+  'home': Icons.home,
+  'favorite': Icons.favorite,
+  'star': Icons.star,
+  'rocket': Icons.rocket_launch,
+  'pet': Icons.pets,
+  'music': Icons.music_note,
+  'game': Icons.sports_esports,
+  'travel': Icons.flight,
+  'food': Icons.restaurant,
+  'coffee': Icons.coffee,
+  'fitness': Icons.fitness_center,
+  'school': Icons.school,
+  'work': Icons.work,
+  'beach': Icons.beach_access,
+  'fire': Icons.local_fire_department,
+  'diamond': Icons.diamond,
+  'bolt': Icons.bolt,
+  'palette': Icons.palette,
+  'camera': Icons.camera_alt,
+  'cake': Icons.cake,
+  'car': Icons.directions_car,
+  'bike': Icons.pedal_bike,
+};
+
+IconData _groupIcon(String key) {
+  return _groupIcons[key] ?? Icons.group;
+}
+
+// ── Group accent colors (dark-theme friendly) ──
+const _groupColors = <String, Color>{
+  '00E5CC': Color(0xFF00E5CC), // teal (default)
+  'FF6B9D': Color(0xFFFF6B9D), // pink
+  '7B68EE': Color(0xFF7B68EE), // purple
+  'FFA726': Color(0xFFFFA726), // amber
+  '42A5F5': Color(0xFF42A5F5), // blue
+  'EF5350': Color(0xFFEF5350), // red
+  '66BB6A': Color(0xFF66BB6A), // green
+  'FFEE58': Color(0xFFFFEE58), // yellow
+  'AB47BC': Color(0xFFAB47BC), // violet
+  'FF7043': Color(0xFFFF7043), // deep orange
+  '26C6DA': Color(0xFF26C6DA), // cyan
+  'EC407A': Color(0xFFEC407A), // rose
+};
+
+Color _groupColor(String hex) {
+  return _groupColors[hex] ?? const Color(0xFF00E5CC);
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -43,6 +98,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late BillService billService;
   String? groupId;
   bool groupChecked = false;
+  bool _reorderMode = false;
+  List<String> _groupOrder = [];
 
   @override
   void initState() {
@@ -50,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
     billService = BillService();
     _checkGroup();
     _checkForUpdate();
+    _loadGroupOrder();
   }
 
   Future<void> _checkGroup() async {
@@ -82,6 +140,47 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     }
+  }
+
+  Future<void> _loadGroupOrder() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists) {
+        final data = doc.data();
+        final order = data?['groupOrder'] as List<dynamic>?;
+        if (order != null) {
+          setState(() => _groupOrder = order.cast<String>());
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveGroupOrder(List<String> order) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .update({'groupOrder': order});
+  }
+
+  List<Group> _sortedGroups(List<Group> groups) {
+    if (_groupOrder.isEmpty) return groups;
+    final ordered = <Group>[];
+    for (final id in _groupOrder) {
+      final match = groups.where((g) => g.id == id);
+      if (match.isNotEmpty) ordered.add(match.first);
+    }
+    // Append any groups not in the saved order
+    for (final g in groups) {
+      if (!_groupOrder.contains(g.id)) ordered.add(g);
+    }
+    return ordered;
   }
 
   /// Returns true if [remote] is a newer semver than [local].
@@ -240,27 +339,40 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (!groupChecked) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: const Color(0xFF0A0E14),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/app_icon_transparent.png',
+                width: 80,
+                height: 80,
+              ),
+              const SizedBox(height: 24),
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF00E5CC),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SPREAD THE FUND'),
-        actions: [
-          if (groupId != null)
-            IconButton(
-              icon: const Icon(Icons.edit, color: Color(0xFF00E5CC), size: 20),
-              tooltip: 'Group Options',
-              onPressed: _showGroupOptionsDialog,
-            ),
-          IconButton(
-            icon: const Icon(Icons.person_add, color: Color(0xFF00E5CC)),
-            tooltip: 'Invite Partner',
-            onPressed: _invitePartner,
-          ),
-        ],
+        centerTitle: true,
+        title: Image.asset(
+          'assets/app_icon_transparent.png',
+          width: 32,
+          height: 32,
+        ),
       ),
       drawer: _buildDrawer(),
       body: groupId == null ? _buildEmptyBillsView() : _buildGroupView(),
@@ -393,20 +505,47 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const Spacer(),
+                if (!_reorderMode)
+                  GestureDetector(
+                    onTap: _showCreateGroupDialog,
+                    child: const Row(
+                      children: [
+                        Icon(Icons.add, color: Color(0xFF00E5CC), size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'NEW',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                            color: Color(0xFF00E5CC),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (!_reorderMode) const SizedBox(width: 12),
                 GestureDetector(
-                  onTap: _showCreateGroupDialog,
-                  child: const Row(
+                  onTap: () => setState(() {
+                    _reorderMode = !_reorderMode;
+                  }),
+                  child: Row(
                     children: [
-                      Icon(Icons.add, color: Color(0xFF00E5CC), size: 16),
-                      SizedBox(width: 4),
+                      Icon(
+                        _reorderMode ? Icons.check : Icons.swap_vert,
+                        color: _reorderMode ? const Color(0xFF00E5CC) : const Color(0xFF8899AA),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
                       Text(
-                        'NEW',
+                        _reorderMode ? 'DONE' : 'SORT',
                         style: TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1,
-                          color: Color(0xFF00E5CC),
+                          color: _reorderMode ? const Color(0xFF00E5CC) : const Color(0xFF8899AA),
                         ),
                       ),
                     ],
@@ -469,6 +608,73 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       }
 
+                      final sortedGroups = _sortedGroups(groups);
+
+                      if (_reorderMode) {
+                        return ReorderableListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          itemCount: sortedGroups.length,
+                          proxyDecorator: (child, index, animation) {
+                            return Material(
+                              color: const Color(0xFF141A22),
+                              elevation: 4,
+                              child: child,
+                            );
+                          },
+                          onReorder: (oldIndex, newIndex) {
+                            if (newIndex > oldIndex) newIndex--;
+                            setState(() {
+                              final item = sortedGroups.removeAt(oldIndex);
+                              sortedGroups.insert(newIndex, item);
+                              _groupOrder = sortedGroups.map((g) => g.id).toList();
+                            });
+                            _saveGroupOrder(_groupOrder);
+                          },
+                          itemBuilder: (context, index) {
+                            final group = sortedGroups[index];
+                            final accent = _groupColor(group.color);
+                            return Container(
+                              key: ValueKey(group.id),
+                              margin: const EdgeInsets.only(bottom: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0D1117),
+                                border: Border(
+                                  left: BorderSide(color: accent, width: 3),
+                                ),
+                              ),
+                              child: ListTile(
+                                dense: true,
+                                leading: _buildGroupAvatar(
+                                  group.customImage,
+                                  group.icon,
+                                  accent,
+                                  20,
+                                ),
+                                title: Text(
+                                  group.name.toUpperCase(),
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                    color: accent,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${group.members.length} member${group.members.length != 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                    color: Color(0xFF556677),
+                                  ),
+                                ),
+                                trailing: Icon(Icons.drag_handle, color: accent.withValues(alpha: 0.5), size: 20),
+                              ),
+                            );
+                          },
+                        );
+                      }
+
                       return RefreshIndicator(
                         color: const Color(0xFF00E5CC),
                         backgroundColor: const Color(0xFF141A22),
@@ -476,35 +682,33 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
-                          itemCount: groups.length,
+                          itemCount: sortedGroups.length,
                           itemBuilder: (context, index) {
-                            final group = groups[index];
+                            final group = sortedGroups[index];
                             final isSelected = group.id == groupId;
+                            final accent = _groupColor(group.color);
                             return Container(
                               margin: const EdgeInsets.only(bottom: 2),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFF00E5CC).withValues(alpha: 0.1)
+                                    ? accent.withValues(alpha: 0.1)
                                     : Colors.transparent,
                                 border: Border(
                                   left: BorderSide(
                                     color: isSelected
-                                        ? const Color(0xFF00E5CC)
-                                        : Colors.transparent,
+                                        ? accent
+                                        : accent.withValues(alpha: 0.3),
                                     width: 3,
                                   ),
                                 ),
                               ),
                               child: ListTile(
                                 dense: true,
-                                leading: Icon(
-                                  group.members.length > 1
-                                      ? Icons.group
-                                      : Icons.person,
-                                  color: isSelected
-                                      ? const Color(0xFF00E5CC)
-                                      : const Color(0xFF8899AA),
-                                  size: 20,
+                                leading: _buildGroupAvatar(
+                                  group.customImage,
+                                  group.icon,
+                                  accent,
+                                  20,
                                 ),
                                 title: Text(
                                   group.name.toUpperCase(),
@@ -514,7 +718,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 1,
                                     color: isSelected
-                                        ? const Color(0xFF00E5CC)
+                                        ? accent
                                         : const Color(0xFFE0E0E0),
                                   ),
                                 ),
@@ -611,14 +815,23 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.only(bottom: 4),
             child: GestureDetector(
               onTap: _showAboutApp,
-              child: const Text(
-                appVersion,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 10,
-                  letterSpacing: 1,
-                  color: Color(0xFF556677),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFF556677), size: 14),
+                    SizedBox(width: 6),
+                    Text(
+                      'ABOUT THIS APP',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        letterSpacing: 1,
+                        color: Color(0xFF556677),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -719,76 +932,265 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showCreateGroupDialog() {
     final nameController = TextEditingController();
+    String selectedIcon = 'group';
+    String selectedColor = '00E5CC';
+    String? pendingImage;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141A22),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        title: const Text(
-          'NEW GROUP',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            letterSpacing: 2,
-            color: Color(0xFFE0E0E0),
-          ),
-        ),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            color: Color(0xFFE0E0E0),
-          ),
-          decoration: const InputDecoration(
-            hintText: 'Group name',
-            hintStyle: TextStyle(
-              fontFamily: 'monospace',
-              color: Color(0xFF556677),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: Color(0xFF1E2A35)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: Color(0xFF00E5CC)),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'CANCEL',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final accent = _groupColor(selectedColor);
+          return AlertDialog(
+            backgroundColor: const Color(0xFF141A22),
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            title: const Text(
+              'NEW GROUP',
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: Color(0xFF8899AA),
+                letterSpacing: 2,
+                color: Color(0xFFE0E0E0),
               ),
             ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              if (name.isEmpty) return;
-              Navigator.pop(ctx);
-              final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
-                final newId = await billService.createNamedGroup(user.email!.toLowerCase(), name);
-                if (newId != null && mounted) {
-                  setState(() => groupId = newId);
-                }
-              }
-            },
-            child: const Text(
-              'CREATE',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF00E5CC),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    autofocus: true,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFFE0E0E0),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Group name',
+                      hintStyle: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF556677),
+                      ),
+                      enabledBorder: const OutlineInputBorder(
+                        borderRadius: BorderRadius.zero,
+                        borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.zero,
+                        borderSide: BorderSide(color: accent),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // ── Group image ──
+                  const Text(
+                    'GROUP IMAGE',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.1),
+                          border: Border.all(color: accent.withValues(alpha: 0.3)),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: pendingImage != null && pendingImage!.isNotEmpty
+                            ? Image.memory(
+                                Uint8List.fromList(base64Decode(pendingImage!)),
+                                fit: BoxFit.cover,
+                                width: 48,
+                                height: 48,
+                                errorBuilder: (_, __, ___) =>
+                                    Icon(_groupIcon(selectedIcon), color: accent, size: 24),
+                              )
+                            : Icon(_groupIcon(selectedIcon), color: accent, size: 24),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            GestureDetector(
+                              onTap: () async {
+                                final result = await _pickAndCropImage(accent);
+                                if (result != null) {
+                                  setDialogState(() {
+                                    pendingImage = result;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: accent),
+                                ),
+                                child: Text(
+                                  pendingImage != null ? 'CHANGE IMAGE' : 'UPLOAD IMAGE',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 11,
+                                    letterSpacing: 1,
+                                    color: accent,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (pendingImage != null) ...[
+                              const SizedBox(height: 6),
+                              GestureDetector(
+                                onTap: () => setDialogState(() => pendingImage = null),
+                                child: const Text(
+                                  'REMOVE',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                    letterSpacing: 1,
+                                    color: Color(0xFFFF4C5E),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'ICON',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Used when no image is set',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 9,
+                      color: Color(0xFF556677),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _groupIcons.entries.map((e) {
+                      final isSel = e.key == selectedIcon;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedIcon = e.key),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: isSel ? accent.withValues(alpha: 0.15) : Colors.transparent,
+                            border: Border.all(
+                              color: isSel ? accent : const Color(0xFF1E2A35),
+                            ),
+                          ),
+                          child: Icon(e.value, color: isSel ? accent : const Color(0xFF556677), size: 18),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'COLOR',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _groupColors.entries.map((e) {
+                      final isSel = e.key == selectedColor;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedColor = e.key),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: e.value.withValues(alpha: 0.25),
+                            border: Border.all(
+                              color: isSel ? Colors.white : e.value.withValues(alpha: 0.4),
+                              width: isSel ? 2 : 1,
+                            ),
+                          ),
+                          child: isSel
+                              ? Icon(Icons.check, color: e.value, size: 16)
+                              : null,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'CANCEL',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFF8899AA),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final name = nameController.text.trim();
+                  if (name.isEmpty) return;
+                  Navigator.pop(ctx);
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    final newId = await billService.createNamedGroup(
+                      user.email!.toLowerCase(),
+                      name,
+                      icon: selectedIcon,
+                      color: selectedColor,
+                    );
+                    if (newId != null) {
+                      if (pendingImage != null) {
+                        await billService.updateGroupAppearance(newId, customImage: pendingImage);
+                      }
+                      if (mounted) {
+                        setState(() => groupId = newId);
+                      }
+                    }
+                  }
+                },
+                child: Text(
+                  'CREATE',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -811,6 +1213,22 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              leading: const Icon(Icons.palette, color: Color(0xFF00E5CC), size: 20),
+              title: const Text(
+                'CHANGE APPEARANCE',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  letterSpacing: 1,
+                  color: Color(0xFFE0E0E0),
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showChangeAppearanceDialog();
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.edit, color: Color(0xFF00E5CC), size: 20),
               title: const Text(
@@ -845,6 +1263,264 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showChangeAppearanceDialog() async {
+    if (groupId == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
+    final current = groups.where((g) => g.id == groupId).toList();
+    if (current.isEmpty) return;
+
+    var selectedIcon = current.first.icon;
+    var selectedColor = current.first.color;
+    String? pendingImage = current.first.customImage;
+    var clearImage = false;
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final accent = _groupColor(selectedColor);
+          return AlertDialog(
+            backgroundColor: const Color(0xFF141A22),
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            title: const Text(
+              'CHANGE APPEARANCE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                letterSpacing: 2,
+                color: Color(0xFFE0E0E0),
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Custom image section ──
+                  const Text(
+                    'GROUP IMAGE',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.1),
+                          border: Border.all(color: accent.withValues(alpha: 0.3)),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: pendingImage != null && pendingImage!.isNotEmpty
+                            ? Image.memory(
+                                Uint8List.fromList(base64Decode(pendingImage!)),
+                                fit: BoxFit.cover,
+                                width: 48,
+                                height: 48,
+                                errorBuilder: (_, __, ___) =>
+                                    Icon(_groupIcon(selectedIcon), color: accent, size: 24),
+                              )
+                            : Icon(_groupIcon(selectedIcon), color: accent, size: 24),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            GestureDetector(
+                              onTap: () async {
+                                final result = await _pickAndCropImage(accent);
+                                if (result != null) {
+                                  setDialogState(() {
+                                    pendingImage = result;
+                                    clearImage = false;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: accent),
+                                ),
+                                child: Text(
+                                  pendingImage != null && pendingImage!.isNotEmpty
+                                      ? 'CHANGE IMAGE'
+                                      : 'UPLOAD IMAGE',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 11,
+                                    letterSpacing: 1,
+                                    color: accent,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (pendingImage != null && pendingImage!.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              GestureDetector(
+                                onTap: () => setDialogState(() {
+                                  pendingImage = null;
+                                  clearImage = true;
+                                }),
+                                child: const Text(
+                                  'REMOVE',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                    letterSpacing: 1,
+                                    color: Color(0xFFFF4C5E),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // ── Icon section ──
+                  const Text(
+                    'ICON',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Used when no image is set',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 9,
+                      color: Color(0xFF556677),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _groupIcons.entries.map((e) {
+                      final isSel = e.key == selectedIcon;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedIcon = e.key),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: isSel ? accent.withValues(alpha: 0.15) : Colors.transparent,
+                            border: Border.all(
+                              color: isSel ? accent : const Color(0xFF1E2A35),
+                            ),
+                          ),
+                          child: Icon(e.value, color: isSel ? accent : const Color(0xFF556677), size: 18),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  // ── Color section ──
+                  const Text(
+                    'COLOR',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      color: Color(0xFF8899AA),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _groupColors.entries.map((e) {
+                      final isSel = e.key == selectedColor;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedColor = e.key),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: e.value.withValues(alpha: 0.25),
+                            border: Border.all(
+                              color: isSel ? Colors.white : e.value.withValues(alpha: 0.4),
+                              width: isSel ? 2 : 1,
+                            ),
+                          ),
+                          child: isSel
+                              ? Icon(Icons.check, color: e.value, size: 16)
+                              : null,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'CANCEL',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFF8899AA),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final success = await billService.updateGroupAppearance(
+                    groupId!,
+                    icon: selectedIcon,
+                    color: selectedColor,
+                    customImage: (pendingImage != null && !clearImage) ? pendingImage : null,
+                    clearImage: clearImage,
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFF141A22),
+                        content: Text(
+                          success ? 'Appearance updated' : 'Error updating appearance',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: success ? const Color(0xFF00E5CC) : const Color(0xFFFF4C5E),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: const Text(
+                  'SAVE',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFF00E5CC),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1132,6 +1808,149 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<String?> _pickAndCropImage(Color accent) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 70,
+    );
+    if (picked == null) return null;
+
+    final bytes = await picked.readAsBytes();
+    final base64Str = base64Encode(bytes);
+
+    if (!mounted) return null;
+
+    String? result;
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        final transformController = TransformationController();
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0D1117),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          title: Text(
+            'CROP IMAGE',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              color: accent,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Pinch to zoom, drag to move',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  color: Color(0xFF8899AA),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  border: Border.all(color: accent, width: 2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: InteractiveViewer(
+                    transformationController: transformController,
+                    minScale: 1.0,
+                    maxScale: 5.0,
+                    child: Image.memory(
+                      Uint8List.fromList(bytes),
+                      fit: BoxFit.cover,
+                      width: 200,
+                      height: 200,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Preview shows final crop area',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  letterSpacing: 1,
+                  color: Color(0xFF556677),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'CANCEL',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  letterSpacing: 1,
+                  color: Color(0xFF8899AA),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                result = base64Str;
+                Navigator.pop(ctx);
+              },
+              child: Text(
+                'USE IMAGE',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  letterSpacing: 1,
+                  color: accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result;
+  }
+
+  Widget _buildGroupAvatar(String? customImage, String iconKey, Color accent, double size) {
+    if (customImage != null && customImage.isNotEmpty) {
+      try {
+        final bytes = base64Decode(customImage);
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            border: Border.all(color: accent.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.memory(
+              Uint8List.fromList(bytes),
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Icon(_groupIcon(iconKey), color: accent, size: size * 0.8),
+            ),
+          ),
+        );
+      } catch (_) {
+        return Icon(_groupIcon(iconKey), color: accent, size: size * 0.8);
+      }
+    }
+    return Icon(_groupIcon(iconKey), color: accent, size: size * 0.8);
+  }
+
   Widget _buildGroupView() {
     final user = FirebaseAuth.instance.currentUser;
     return Column(
@@ -1145,24 +1964,48 @@ class _HomeScreenState extends State<HomeScreen> {
               final groups = snapshot.data ?? [];
               final current = groups.where((g) => g.id == groupId).toList();
               final name = current.isNotEmpty ? current.first.name : '';
+              final accent = current.isNotEmpty ? _groupColor(current.first.color) : const Color(0xFF00E5CC);
+              final iconKey = current.isNotEmpty ? current.first.icon : 'group';
+              final customImage = current.isNotEmpty ? current.first.customImage : null;
               return Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF141A22),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141A22),
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFF1E2A35)),
+                    bottom: BorderSide(color: accent.withValues(alpha: 0.3)),
                   ),
                 ),
-                child: Text(
-                  name.toUpperCase(),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                    color: Color(0xFF00E5CC),
-                  ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Center(
+                      child: Text(
+                        name.toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: _showGroupOptionsDialog,
+                          child: _buildGroupAvatar(customImage, iconKey, accent, 28),
+                        ),
+                        GestureDetector(
+                          onTap: _invitePartner,
+                          child: Icon(Icons.person_add, color: accent, size: 22),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               );
             },
@@ -2007,72 +2850,197 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141A22),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF00E5CC).withValues(alpha: 0.3)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/app_icon_transparent.png',
+                width: 80,
+                height: 80,
               ),
-              child: const Icon(Icons.attach_money, color: Color(0xFF00E5CC), size: 36),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'SPREAD THE FUND',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                color: Color(0xFF00E5CC),
+              const SizedBox(height: 16),
+              ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [Color(0xFF00E5CC), Color(0xFF42A5F5)],
+                ).createShader(bounds),
+                child: const Text(
+                  'SPREAD\nTHE FUND',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                    letterSpacing: 4,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              appVersion,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: Color(0xFF8899AA),
+              const SizedBox(height: 4),
+              const Text(
+                appVersion,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Color(0xFF8899AA),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              height: 1,
-              color: const Color(0xFF1E2A35),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Made by Jason Green',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 13,
-                color: Color(0xFFE0E0E0),
+              const SizedBox(height: 12),
+              const Text(
+                'A bill-splitting app',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: Color(0xFF556677),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            const SelectableText(
-              'github.com/CrowdTypical/spreadthefund',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 11,
-                color: Color(0xFF00E5CC),
+              const SizedBox(height: 16),
+              Container(width: double.infinity, height: 1, color: const Color(0xFF1E2A35)),
+              const SizedBox(height: 16),
+
+              // Developer section
+              const Text(
+                'This app is a passion project\ndeveloped by Jason Green',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Color(0xFFE0E0E0),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'A bill-splitting app built with\nFlutter & Firebase',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 11,
-                color: Color(0xFF556677),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => launchUrl(Uri.parse('https://github.com/CrowdTypical'), mode: LaunchMode.externalApplication),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.code, color: Color(0xFF00E5CC), size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'github.com/CrowdTypical',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        color: Color(0xFF00E5CC),
+                        decoration: TextDecoration.underline,
+                        decorationColor: Color(0xFF00E5CC),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Container(width: double.infinity, height: 1, color: const Color(0xFF1E2A35)),
+              const SizedBox(height: 16),
+
+              // Donate section
+              const Text(
+                'SUPPORT THE PROJECT',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  letterSpacing: 2,
+                  color: Color(0xFF8899AA),
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => launchUrl(Uri.parse('https://buymeacoffee.com/crowdtypical'), mode: LaunchMode.externalApplication),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFFFA726)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.coffee, color: Color(0xFFFFA726), size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'BUY ME A COFFEE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                          color: Color(0xFFFFA726),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(width: double.infinity, height: 1, color: const Color(0xFF1E2A35)),
+              const SizedBox(height: 16),
+
+              // Privacy Policy
+              const Text(
+                'PRIVACY POLICY',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  letterSpacing: 2,
+                  color: Color(0xFF8899AA),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Spread the Fund collects only the data '
+                'necessary to provide its core bill-splitting '
+                'functionality:\n\n'
+                '\u2022 Google account info (name, email, photo) '
+                'for authentication\n'
+                '\u2022 Group and bill data you create within the app\n'
+                '\u2022 Feedback you voluntarily submit\n\n'
+                'Your data is stored securely in Firebase and is '
+                'never sold or shared with third parties.',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  height: 1.5,
+                  color: Color(0xFF556677),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(width: double.infinity, height: 1, color: const Color(0xFF1E2A35)),
+              const SizedBox(height: 16),
+
+              // Delete data section
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showDeleteDataDialog();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFEF5350).withValues(alpha: 0.5)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.delete_forever, color: Color(0xFFEF5350), size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'DELETE MY DATA',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                          color: Color(0xFFEF5350),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -2089,6 +3057,206 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  void _showDeleteDataDialog() {
+    final confirmController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final confirmed = confirmController.text.trim().toUpperCase() == 'DELETE';
+          return AlertDialog(
+            backgroundColor: const Color(0xFF141A22),
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            title: const Text(
+              'DELETE ALL DATA',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                color: Color(0xFFEF5350),
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'This will permanently delete:',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    color: Color(0xFFE0E0E0),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '• Your account & profile\n'
+                  '• All groups where you are the only member\n'
+                  '• Your membership in shared groups\n'
+                  '• All invites you sent or received\n'
+                  '• All feedback you submitted',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    height: 1.6,
+                    color: Color(0xFF8899AA),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'THIS CANNOT BE UNDONE.',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFEF5350),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Type DELETE to confirm:',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: Color(0xFF8899AA),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: confirmController,
+                  autofocus: true,
+                  onChanged: (_) => setDialogState(() {}),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFEF5350),
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: 'DELETE',
+                    hintStyle: TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFF333D47),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: Color(0xFFEF5350)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'CANCEL',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    letterSpacing: 1,
+                    color: Color(0xFF8899AA),
+                  ),
+                ),
+              ),
+              OutlinedButton(
+                onPressed: confirmed ? () => _executeDeleteAllData(ctx) : null,
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: confirmed
+                        ? const Color(0xFFEF5350)
+                        : const Color(0xFF333D47),
+                  ),
+                  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                ),
+                child: Text(
+                  'DELETE EVERYTHING',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                    color: confirmed
+                        ? const Color(0xFFEF5350)
+                        : const Color(0xFF333D47),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _executeDeleteAllData(BuildContext dialogContext) async {
+    Navigator.pop(dialogContext);
+    Navigator.pop(context); // close drawer
+
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFF141A22),
+          duration: Duration(seconds: 10),
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFEF5350),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Deleting all data...',
+                style: TextStyle(fontFamily: 'monospace', color: Color(0xFFEF5350)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) return;
+
+    final success = await billService.deleteAllUserData(user.email!, user.uid);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+    }
+
+    if (success) {
+      // Sign out and delete auth account
+      try {
+        await user.delete();
+      } catch (_) {
+        // If re-auth is required, just sign out instead
+      }
+      final authService = context.read<AuthService>();
+      await authService.signOut();
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF141A22),
+            content: Text(
+              'Failed to delete data. Please try again.',
+              style: TextStyle(fontFamily: 'monospace', color: Color(0xFFEF5350)),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _logout() async {
