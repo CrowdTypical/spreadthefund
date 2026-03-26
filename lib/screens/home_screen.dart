@@ -17,7 +17,7 @@ import 'bill_detail_screen.dart';
 import 'group_details_screen.dart';
 import 'partner_setup_screen.dart';
 
-const String appVersion = 'v1.0.2';
+const String appVersion = 'v1.0.3';
 const String releasesUrl = 'https://github.com/CrowdTypical/spreadthefund/releases';
 
 const _categoryIcons = <String, IconData>{
