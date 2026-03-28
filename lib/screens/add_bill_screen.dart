@@ -1,32 +1,16 @@
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 import '../services/bill_service.dart';
-
-// Default categories with icons
-class _Category {
-  final String name;
-  final IconData icon;
-  const _Category(this.name, this.icon);
-}
-
-const List<_Category> _defaultCategories = [
-  _Category('Food', Icons.restaurant),
-  _Category('Transport', Icons.directions_car),
-  _Category('Groceries', Icons.shopping_cart),
-  _Category('Entertainment', Icons.movie),
-  _Category('Utilities', Icons.bolt),
-  _Category('Rent', Icons.home),
-  _Category('Shopping', Icons.shopping_bag),
-  _Category('Health', Icons.medical_services),
-];
-
-IconData _iconForCategory(String name) {
-  for (final c in _defaultCategories) {
-    if (c.name.toLowerCase() == name.toLowerCase()) return c.icon;
-  }
-  return Icons.receipt_long;
-}
+import '../constants/theme_constants.dart';
 
 class AddBillScreen extends StatefulWidget {
   final String groupId;
@@ -60,8 +44,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
   @override
   void initState() {
     super.initState();
-    _billService = BillService();
-    _paidBy = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
+    _billService = context.read<BillService>();
+    _paidBy = context.read<AuthService>().currentUser!.email!.toLowerCase();
     _amountController.addListener(() => setState(() {}));
     _loadData();
   }
@@ -72,7 +56,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
     // Merge: group-used categories first (by frequency), then defaults
     final usedNames = categories.map((c) => c.toLowerCase()).toSet();
-    final defaults = _defaultCategories
+    final defaults = defaultCategories
         .where((c) => !usedNames.contains(c.name.toLowerCase()))
         .map((c) => c.name)
         .toList();
@@ -93,8 +77,31 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final routeAnimation = ModalRoute.of(context)?.animation;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('ADD BILL')),
+      appBar: AppBar(
+        title: const Text('ADD BILL'),
+        leading: routeAnimation != null
+            ? AnimatedBuilder(
+                animation: routeAnimation,
+                builder: (context, child) {
+                  // Complete the flip in the first half of the route animation
+                  final raw = (1.0 - routeAnimation.value).clamp(0.0, 1.0);
+                  final t = (raw * 2.0).clamp(0.0, 1.0);
+                  return Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.rotationY(t * math.pi),
+                    child: child,
+                  );
+                },
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.maybePop(context),
+                ),
+              )
+            : null,
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -118,7 +125,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
     );
   }
 
-  // ── CATEGORY SELECTOR ──────────────────────────────────────
+  // â”€â”€ CATEGORY SELECTOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildCategorySelector() {
     return Column(
@@ -130,18 +137,18 @@ class _AddBillScreenState extends State<AddBillScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: const Color(0xFF141A22),
+              color: AppColors.surface,
               border: Border.all(
                 color: _showCategories
-                    ? const Color(0xFF00E5CC)
-                    : const Color(0xFF1E2A35),
+                    ? AppColors.accent
+                    : AppColors.border,
               ),
             ),
             child: Row(
               children: [
                 if (_selectedCategory != null) ...[
-                  Icon(_iconForCategory(_selectedCategory!),
-                      color: const Color(0xFF00E5CC), size: 20),
+                  Icon(iconForCategory(_selectedCategory!),
+                      color: colorForCategory(_selectedCategory!), size: 20),
                   const SizedBox(width: 10),
                 ],
                 Expanded(
@@ -152,8 +159,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
                       fontSize: 14,
                       letterSpacing: 1,
                       color: _selectedCategory != null
-                          ? const Color(0xFFE0E0E0)
-                          : const Color(0xFF8899AA),
+                          ? AppColors.textPrimary
+                          : AppColors.textMuted,
                     ),
                   ),
                 ),
@@ -161,7 +168,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                   _showCategories
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
-                  color: const Color(0xFF8899AA),
+                  color: AppColors.textMuted,
                 ),
               ],
             ),
@@ -182,7 +189,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
       margin: const EdgeInsets.only(top: 2),
       decoration: BoxDecoration(
         color: const Color(0xFF0D1117),
-        border: Border.all(color: const Color(0xFF1E2A35)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -192,8 +199,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              color: const Color(0xFF00E5CC),
-              child: const Icon(Icons.add, color: Color(0xFF0A0E14), size: 28),
+              color: AppColors.accent,
+              child: const Icon(Icons.add, color: AppColors.background, size: 28),
             ),
           ),
 
@@ -207,23 +214,24 @@ class _AddBillScreenState extends State<AddBillScreen> {
                     child: TextField(
                       controller: _customCategoryController,
                       autofocus: true,
+                      maxLength: 50,
                       style: const TextStyle(
                         fontFamily: 'monospace',
-                        color: Color(0xFFE0E0E0),
+                        color: AppColors.textPrimary,
                       ),
                       decoration: const InputDecoration(
                         hintText: 'Custom category...',
                         hintStyle: TextStyle(
                           fontFamily: 'monospace',
-                          color: Color(0xFF556677),
+                          color: AppColors.textDim,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.zero,
-                          borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                          borderSide: BorderSide(color: AppColors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.zero,
-                          borderSide: BorderSide(color: Color(0xFF00E5CC)),
+                          borderSide: BorderSide(color: AppColors.accent),
                         ),
                         contentPadding:
                             EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -236,9 +244,9 @@ class _AddBillScreenState extends State<AddBillScreen> {
                     onTap: _confirmCustomCategory,
                     child: Container(
                       padding: const EdgeInsets.all(10),
-                      color: const Color(0xFF00E5CC),
+                      color: AppColors.accent,
                       child: const Icon(Icons.check,
-                          color: Color(0xFF0A0E14), size: 20),
+                          color: AppColors.background, size: 20),
                     ),
                   ),
                 ],
@@ -271,22 +279,22 @@ class _AddBillScreenState extends State<AddBillScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF00E5CC).withValues(alpha: 0.15)
-                        : const Color(0xFF0A0E14),
+                        ? colorForCategory(cat).withValues(alpha: 0.15)
+                        : colorForCategory(cat).withValues(alpha: 0.05),
                     border: Border.all(
                       color: isSelected
-                          ? const Color(0xFF00E5CC)
-                          : const Color(0xFF1E2A35),
+                          ? colorForCategory(cat)
+                          : colorForCategory(cat).withValues(alpha: 0.2),
                     ),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        _iconForCategory(cat),
+                        iconForCategory(cat),
                         color: isSelected
-                            ? const Color(0xFF00E5CC)
-                            : Colors.white,
+                            ? colorForCategory(cat)
+                            : colorForCategory(cat).withValues(alpha: 0.8),
                         size: 36,
                       ),
                       const SizedBox(height: 8),
@@ -298,8 +306,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1,
                           color: isSelected
-                              ? const Color(0xFF00E5CC)
-                              : const Color(0xFFE0E0E0),
+                              ? colorForCategory(cat)
+                              : AppColors.textPrimary,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -318,7 +326,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                color: const Color(0xFF00E5CC),
+                color: AppColors.accent,
                 child: Text(
                   _showAllCategories ? 'SHOW LESS' : 'LOAD MORE',
                   textAlign: TextAlign.center,
@@ -326,7 +334,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                     fontFamily: 'monospace',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF0A0E14),
+                    color: AppColors.background,
                   ),
                 ),
               ),
@@ -352,45 +360,49 @@ class _AddBillScreenState extends State<AddBillScreen> {
     });
   }
 
-  // ── AMOUNT FIELD ───────────────────────────────────────────
+  // â”€â”€ AMOUNT FIELD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildAmountField() {
     return TextFormField(
       controller: _amountController,
+      maxLength: 12,
       style: const TextStyle(
-          fontFamily: 'monospace', fontSize: 20, color: Color(0xFF00E5CC)),
+          fontFamily: 'monospace', fontSize: 20, color: AppColors.accent),
       decoration: const InputDecoration(
         labelText: 'AMOUNT',
         labelStyle: TextStyle(
             fontFamily: 'monospace',
             fontSize: 12,
             letterSpacing: 1,
-            color: Color(0xFF8899AA)),
+            color: AppColors.textMuted),
         hintText: '0.00',
         hintStyle: TextStyle(fontFamily: 'monospace', color: Color(0xFF455566)),
         prefixText: '\$ ',
         prefixStyle: TextStyle(
-            fontFamily: 'monospace', fontSize: 20, color: Color(0xFF00E5CC)),
+            fontFamily: 'monospace', fontSize: 20, color: AppColors.accent),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: Color(0xFF1E2A35)),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: Color(0xFF00E5CC)),
+          borderSide: BorderSide(color: AppColors.accent),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: Color(0xFFFF4C5E)),
+          borderSide: BorderSide(color: AppColors.danger),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: Color(0xFFFF4C5E)),
+          borderSide: BorderSide(color: AppColors.danger),
         ),
         filled: true,
-        fillColor: Color(0xFF141A22),
+        fillColor: AppColors.surface,
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+      ],
       validator: (value) {
         if (value?.isEmpty ?? true) return 'Enter an amount';
         final parsed = double.tryParse(value!);
@@ -400,7 +412,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
     );
   }
 
-  // ── WHO PAID DROPDOWN ──────────────────────────────────────
+  // â”€â”€ WHO PAID DROPDOWN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSplitSlider() {
     final amount = double.tryParse(_amountController.text) ?? 0;
@@ -416,16 +428,16 @@ class _AddBillScreenState extends State<AddBillScreen> {
       child: Container(
         margin: const EdgeInsets.only(top: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF141A22),
+          color: AppColors.surface,
           border: Border.all(
             color: _splitExpanded
-                ? const Color(0xFF00E5CC)
-                : const Color(0xFF1E2A35),
+                ? AppColors.accent
+                : AppColors.border,
           ),
         ),
         child: Column(
           children: [
-            // ── Collapsed header (always visible) ──
+            // â”€â”€ Collapsed header (always visible) â”€â”€
             GestureDetector(
               onTap: () => setState(() => _splitExpanded = !_splitExpanded),
               child: Container(
@@ -434,7 +446,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                 child: Row(
                   children: [
                     const Icon(Icons.pie_chart_outline,
-                        color: Color(0xFF8899AA), size: 18),
+                        color: AppColors.textMuted, size: 18),
                     const SizedBox(width: 10),
                     const Text(
                       'SPLIT',
@@ -442,7 +454,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                         fontFamily: 'monospace',
                         fontSize: 12,
                         letterSpacing: 1,
-                        color: Color(0xFF8899AA),
+                        color: AppColors.textMuted,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -453,8 +465,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: (_splitPercent - 50).abs() < 1
-                            ? const Color(0xFFE0E0E0)
-                            : const Color(0xFF00E5CC),
+                            ? AppColors.textPrimary
+                            : AppColors.accent,
                       ),
                     ),
                     const Spacer(),
@@ -462,14 +474,14 @@ class _AddBillScreenState extends State<AddBillScreen> {
                       _splitExpanded
                           ? Icons.keyboard_arrow_up
                           : Icons.keyboard_arrow_down,
-                      color: const Color(0xFF8899AA),
+                      color: AppColors.textMuted,
                     ),
                   ],
                 ),
               ),
             ),
 
-            // ── Expanded details ──
+            // â”€â”€ Expanded details â”€â”€
             if (_splitExpanded) ...[
               Container(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -480,21 +492,21 @@ class _AddBillScreenState extends State<AddBillScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${_splitPercent.round()}%  •  \$${payerShare.toStringAsFixed(2)}',
+                          '${_splitPercent.round()}%  â€¢  \$${payerShare.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF00E5CC),
+                            color: AppColors.accent,
                           ),
                         ),
                         Text(
-                          '\$${otherShare.toStringAsFixed(2)}  •  ${(100 - _splitPercent).round()}%',
+                          '\$${otherShare.toStringAsFixed(2)}  â€¢  ${(100 - _splitPercent).round()}%',
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFFF4C5E),
+                            color: AppColors.danger,
                           ),
                         ),
                       ],
@@ -503,10 +515,10 @@ class _AddBillScreenState extends State<AddBillScreen> {
                     // Slider
                     SliderTheme(
                       data: SliderThemeData(
-                        activeTrackColor: const Color(0xFF00E5CC),
-                        inactiveTrackColor: const Color(0xFFFF4C5E).withValues(alpha: 0.4),
-                        thumbColor: const Color(0xFF00E5CC),
-                        overlayColor: const Color(0xFF00E5CC).withValues(alpha: 0.15),
+                        activeTrackColor: AppColors.accent,
+                        inactiveTrackColor: AppColors.danger.withValues(alpha: 0.4),
+                        thumbColor: AppColors.accent,
+                        overlayColor: AppColors.accent.withValues(alpha: 0.15),
                         trackHeight: 6,
                         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
                       ),
@@ -546,15 +558,15 @@ class _AddBillScreenState extends State<AddBillScreen> {
           setState(() {
             _splitPercent = value;
             // Auto-switch Who Paid for the full-pay presets
-            final currentEmail = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
+            final currentEmail = context.read<AuthService>().currentUser!.email!.toLowerCase();
             if (value >= 100) {
               _paidBy = currentEmail;
             } else if (value <= 0 && _members.length >= 2) {
               final other = _members.firstWhere(
-                (m) => m['uid'] != currentEmail,
+                (m) => m['email'] != currentEmail,
                 orElse: () => _members.first,
               );
-              _paidBy = other['uid'];
+              _paidBy = other['email'];
             }
           });
         },
@@ -562,12 +574,12 @@ class _AddBillScreenState extends State<AddBillScreen> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: isActive
-                ? const Color(0xFF00E5CC).withValues(alpha: 0.15)
+                ? AppColors.accent.withValues(alpha: 0.15)
                 : Colors.transparent,
             border: Border.all(
               color: isActive
-                  ? const Color(0xFF00E5CC)
-                  : const Color(0xFF1E2A35),
+                  ? AppColors.accent
+                  : AppColors.border,
             ),
           ),
           child: Text(
@@ -579,8 +591,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
               color: isActive
-                  ? const Color(0xFF00E5CC)
-                  : const Color(0xFF8899AA),
+                  ? AppColors.accent
+                  : AppColors.textMuted,
             ),
           ),
         ),
@@ -589,13 +601,13 @@ class _AddBillScreenState extends State<AddBillScreen> {
   }
 
   Widget _buildWhoPaidDropdown() {
-    final currentEmail = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
+    final currentEmail = context.read<AuthService>().currentUser!.email!.toLowerCase();
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141A22),
-        border: Border.all(color: const Color(0xFF1E2A35)),
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -606,24 +618,24 @@ class _AddBillScreenState extends State<AddBillScreen> {
               fontFamily: 'monospace',
               fontSize: 12,
               letterSpacing: 1,
-              color: Color(0xFF8899AA),
+              color: AppColors.textMuted,
             ),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             key: ValueKey(_paidBy),
-            initialValue: _members.any((m) => m['uid'] == _paidBy) ? _paidBy : null,
-            dropdownColor: const Color(0xFF141A22),
+            initialValue: _members.any((m) => m['email'] == _paidBy) ? _paidBy : null,
+            dropdownColor: AppColors.surface,
             style: const TextStyle(
-                fontFamily: 'monospace', color: Color(0xFFE0E0E0)),
+                fontFamily: 'monospace', color: AppColors.textPrimary),
             decoration: const InputDecoration(
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(color: Color(0xFF00E5CC)),
+                borderSide: BorderSide(color: AppColors.accent),
               ),
               filled: true,
               fillColor: Color(0xFF0D1117),
@@ -635,44 +647,30 @@ class _AddBillScreenState extends State<AddBillScreen> {
               return _members.isEmpty
                   ? []
                   : _members.map((m) {
-                      final isMe = m['uid'] == currentEmail;
-                      final email = m['email'] ?? '';
-                      final showEmail = email.isNotEmpty && email != m['name'];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            isMe
-                                ? '${m['name']!.toUpperCase()} (YOU)'
-                                : m['name']!.toUpperCase(),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 14,
-                              color: Color(0xFFE0E0E0),
-                            ),
+                      final isMe = m['email'] == currentEmail;
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          isMe
+                              ? '${m['name']!.toUpperCase()} (YOU)'
+                              : m['name']!.toUpperCase(),
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
                           ),
-                          if (showEmail)
-                            Text(
-                              email,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 10,
-                                color: Color(0xFF556677),
-                              ),
-                            ),
-                        ],
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       );
                     }).toList();
             },
             items: _members.isEmpty
                 ? []
                 : _members.map((m) {
-                    final isMe = m['uid'] == currentEmail;
+                    final isMe = m['email'] == currentEmail;
                     final showEmail = m['email']!.isNotEmpty && m['email'] != m['name'];
                     return DropdownMenuItem(
-                      value: m['uid'],
+                      value: m['email'],
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -689,7 +687,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                               style: const TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 10,
-                                color: Color(0xFF556677),
+                                color: AppColors.textDim,
                               ),
                             ),
                         ],
@@ -703,15 +701,16 @@ class _AddBillScreenState extends State<AddBillScreen> {
     );
   }
 
-  // ── NOTES FIELD ────────────────────────────────────────────
+  // â”€â”€ NOTES FIELD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildNotesField() {
     return TextField(
       controller: _notesController,
+      maxLength: 500,
       style: const TextStyle(
         fontFamily: 'monospace',
         fontSize: 14,
-        color: Color(0xFFE0E0E0),
+        color: AppColors.textPrimary,
       ),
       maxLines: 3,
       minLines: 1,
@@ -721,7 +720,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
           fontFamily: 'monospace',
           fontSize: 12,
           letterSpacing: 1,
-          color: Color(0xFF8899AA),
+          color: AppColors.textMuted,
         ),
         hintText: 'Add a note...',
         hintStyle: TextStyle(
@@ -730,20 +729,20 @@ class _AddBillScreenState extends State<AddBillScreen> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: Color(0xFF1E2A35)),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: Color(0xFF00E5CC)),
+          borderSide: BorderSide(color: AppColors.accent),
         ),
         filled: true,
-        fillColor: Color(0xFF141A22),
+        fillColor: AppColors.surface,
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }
 
-  // ── DATE PICKER ────────────────────────────────────────────
+  // â”€â”€ DATE PICKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildDatePicker() {
     return GestureDetector(
@@ -751,13 +750,13 @@ class _AddBillScreenState extends State<AddBillScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF141A22),
-          border: Border.all(color: const Color(0xFF1E2A35)),
+          color: AppColors.surface,
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
             const Icon(Icons.calendar_today,
-                color: Color(0xFF8899AA), size: 18),
+                color: AppColors.textMuted, size: 18),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -768,7 +767,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                     fontFamily: 'monospace',
                     fontSize: 11,
                     letterSpacing: 1,
-                    color: Color(0xFF8899AA),
+                    color: AppColors.textMuted,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -777,13 +776,13 @@ class _AddBillScreenState extends State<AddBillScreen> {
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 14,
-                    color: Color(0xFFE0E0E0),
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],
             ),
             const Spacer(),
-            const Icon(Icons.edit, color: Color(0xFF00E5CC), size: 16),
+            const Icon(Icons.edit, color: AppColors.accent, size: 16),
           ],
         ),
       ),
@@ -800,8 +799,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5CC),
-              surface: Color(0xFF141A22),
+              primary: AppColors.accent,
+              surface: AppColors.surface,
             ),
           ),
           child: child!,
@@ -817,8 +816,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5CC),
-              surface: Color(0xFF141A22),
+              primary: AppColors.accent,
+              surface: AppColors.surface,
             ),
           ),
           child: child!,
@@ -837,7 +836,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
     });
   }
 
-  // ── ADD BUTTON ─────────────────────────────────────────────
+  // â”€â”€ ADD BUTTON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildAddButton() {
     return SizedBox(
@@ -846,7 +845,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
         onPressed: _isLoading ? null : _saveBill,
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          side: const BorderSide(color: Color(0xFF00E5CC)),
+          side: const BorderSide(color: AppColors.accent),
           shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero),
         ),
@@ -855,7 +854,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Color(0xFF00E5CC)),
+                    strokeWidth: 2, color: AppColors.accent),
               )
             : const Text(
                 'ADD BILL',
@@ -864,7 +863,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
-                  color: Color(0xFF00E5CC),
+                  color: AppColors.accent,
                 ),
               ),
       ),
@@ -875,10 +874,10 @@ class _AddBillScreenState extends State<AddBillScreen> {
     if (_selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Color(0xFF141A22),
+          backgroundColor: AppColors.surface,
           content: Text(
             'Please select a category',
-            style: TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
+            style: TextStyle(fontFamily: 'monospace', color: AppColors.danger),
           ),
         ),
       );
@@ -905,11 +904,11 @@ class _AddBillScreenState extends State<AddBillScreen> {
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            backgroundColor: Color(0xFF141A22),
+            backgroundColor: AppColors.surface,
             content: Text(
               'Bill added!',
               style:
-                  TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+                  TextStyle(fontFamily: 'monospace', color: AppColors.accent),
             ),
           ),
         );
@@ -917,11 +916,11 @@ class _AddBillScreenState extends State<AddBillScreen> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            backgroundColor: Color(0xFF141A22),
+            backgroundColor: AppColors.surface,
             content: Text(
               'Error adding bill',
               style:
-                  TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
+                  TextStyle(fontFamily: 'monospace', color: AppColors.danger),
             ),
           ),
         );

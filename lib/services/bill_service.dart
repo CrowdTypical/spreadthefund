@@ -1,11 +1,19 @@
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
+import 'dart:async';
 import 'dart:developer';
+import 'package:flutter/foundation.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/bill.dart';
 import '../models/group.dart';
 
 class BillService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // ── Invites ──────────────────────────────────────────────────────
 
@@ -29,7 +37,7 @@ class BillService {
       });
       return true;
     } catch (e) {
-      log('Error creating invite: $e');
+      if (kDebugMode) log('Error creating invite: $e');
       return false;
     }
   }
@@ -39,26 +47,26 @@ class BillService {
   Future<void> processPendingInvites(String email) async {
     try {
       final normalizedEmail = email.toLowerCase();
-      log('Processing invites for: $normalizedEmail');
+      if (kDebugMode) log('Processing invites for: $normalizedEmail');
       final snapshot = await _firestore
           .collection('invites')
           .where('inviteeEmail', isEqualTo: normalizedEmail)
           .get();
 
-      log('Found ${snapshot.docs.length} invite(s)');
+      if (kDebugMode) log('Found ${snapshot.docs.length} invite(s)');
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final status = data['status'] as String?;
         if (status != 'pending') {
-          log('Skipping invite ${doc.id} — status: $status');
+          if (kDebugMode) log('Skipping invite ${doc.id} — status: $status');
           continue;
         }
         await doc.reference.update({'status': 'accepted'});
-        log('Marked invite ${doc.id} as accepted');
+        if (kDebugMode) log('Marked invite ${doc.id} as accepted');
       }
     } catch (e) {
-      log('Error processing invites: $e');
+      if (kDebugMode) log('Error processing invites: $e');
     }
   }
 
@@ -67,26 +75,31 @@ class BillService {
   Future<void> migrateUidToEmail(String uid, String email) async {
     try {
       final normalizedEmail = email.toLowerCase();
-      log('Migrating UID $uid → email $normalizedEmail in groups');
+      if (kDebugMode) log('Migrating UID $uid → email $normalizedEmail in groups');
 
       final groups = await _firestore
           .collection('groups')
           .where('members', arrayContains: uid)
           .get();
 
-      log('Found ${groups.docs.length} group(s) with UID in members');
+      if (kDebugMode) log('Found ${groups.docs.length} group(s) with UID in members');
 
       for (final doc in groups.docs) {
-        await doc.reference.update({
-          'members': FieldValue.arrayRemove([uid]),
+        await _firestore.runTransaction((transaction) async {
+          final freshSnap = await transaction.get(doc.reference);
+          final members = List<String>.from(freshSnap.data()?['members'] ?? []);
+          if (members.contains(uid)) {
+            members.remove(uid);
+            if (!members.contains(normalizedEmail)) {
+              members.add(normalizedEmail);
+            }
+            transaction.update(doc.reference, {'members': members});
+          }
         });
-        await doc.reference.update({
-          'members': FieldValue.arrayUnion([normalizedEmail]),
-        });
-        log('Migrated group ${doc.id}: $uid → $normalizedEmail');
+        if (kDebugMode) log('Migrated group ${doc.id}: $uid → $normalizedEmail');
       }
     } catch (e) {
-      log('Error migrating UID to email: $e');
+      if (kDebugMode) log('Error migrating UID to email: $e');
     }
   }
 
@@ -105,7 +118,7 @@ class BillService {
       });
       return docRef.id;
     } catch (e) {
-      log('Error creating personal group: $e');
+      if (kDebugMode) log('Error creating personal group: $e');
       return null;
     }
   }
@@ -121,7 +134,7 @@ class BillService {
       });
       return docRef.id;
     } catch (e) {
-      log('Error creating bill group: $e');
+      if (kDebugMode) log('Error creating bill group: $e');
       return null;
     }
   }
@@ -139,20 +152,29 @@ class BillService {
       });
       return docRef.id;
     } catch (e) {
-      log('Error creating named group: $e');
+      if (kDebugMode) log('Error creating named group: $e');
       return null;
     }
   }
 
+  // Maximum number of members allowed per group
+  static const int maxGroupMembers = 2;
+
   // Add a member to an existing group (by email)
   Future<bool> addMemberToGroup(String groupId, String memberEmail) async {
     try {
+      final doc = await _firestore.collection('groups').doc(groupId).get();
+      final members = (doc.data()?['members'] as List?) ?? [];
+      if (members.length >= maxGroupMembers) {
+        if (kDebugMode) log('Group already has $maxGroupMembers members');
+        return false;
+      }
       await _firestore.collection('groups').doc(groupId).update({
         'members': FieldValue.arrayUnion([memberEmail.toLowerCase()]),
       });
       return true;
     } catch (e) {
-      log('Error adding member: $e');
+      if (kDebugMode) log('Error adding member: $e');
       return false;
     }
   }
@@ -165,7 +187,7 @@ class BillService {
       });
       return true;
     } catch (e) {
-      log('Error removing member: $e');
+      if (kDebugMode) log('Error removing member: $e');
       return false;
     }
   }
@@ -182,17 +204,23 @@ class BillService {
     DateTime? date,
   }) async {
     try {
-      await _firestore.collection('groups').doc(groupId).collection('bills').add({
-        'paidBy': paidBy,
-        'amount': amount,
-        'description': description,
-        'category': category,
-        'notes': notes,
-        'splitPercent': splitPercent,
-        'splitEquallyWith': 'both',
-        'createdAt': date != null ? Timestamp.fromDate(date) : FieldValue.serverTimestamp(),
-        'settled': false,
-      });
+      final bill = Bill(
+        id: '',
+        paidBy: paidBy,
+        amount: amount,
+        description: description,
+        category: category,
+        notes: notes,
+        splitPercent: splitPercent,
+        createdAt: date ?? DateTime.now(),
+        settled: false,
+      );
+      final data = bill.toMap();
+      data['splitEquallyWith'] = 'both';
+      if (date == null) {
+        data['createdAt'] = FieldValue.serverTimestamp();
+      }
+      await _firestore.collection('groups').doc(groupId).collection('bills').add(data);
 
       // Track the category usage for this group
       final catRef = _firestore
@@ -207,7 +235,7 @@ class BillService {
 
       return true;
     } catch (e) {
-      log('Error adding bill: $e');
+      if (kDebugMode) log('Error adding bill: $e');
       return false;
     }
   }
@@ -223,7 +251,7 @@ class BillService {
           .get();
       return snapshot.docs.map((doc) => doc['name'] as String).toList();
     } catch (e) {
-      log('Error getting categories: $e');
+      if (kDebugMode) log('Error getting categories: $e');
       return [];
     }
   }
@@ -234,17 +262,26 @@ class BillService {
     try {
       final groupDoc = await _firestore.collection('groups').doc(groupId).get();
       final members = List<String>.from(groupDoc.data()?['members'] ?? []);
+      final emails = members.map((m) => m.toLowerCase()).toList();
       final result = <Map<String, String>>[];
-      for (final member in members) {
-        final email = member.toLowerCase();
-        // Look up user doc by email
+
+      // Batch-lookup all members in one query (Firestore whereIn supports up to 30)
+      final userDocs = <String, Map<String, dynamic>>{};
+      if (emails.isNotEmpty) {
         final userSnap = await _firestore
             .collection('users')
-            .where('email', isEqualTo: email)
-            .limit(1)
+            .where('email', whereIn: emails)
             .get();
-        if (userSnap.docs.isNotEmpty) {
-          final data = userSnap.docs.first.data();
+        for (final doc in userSnap.docs) {
+          final data = doc.data();
+          final docEmail = (data['email'] as String?)?.toLowerCase();
+          if (docEmail != null) userDocs[docEmail] = data;
+        }
+      }
+
+      for (final email in emails) {
+        final data = userDocs[email];
+        if (data != null) {
           final username = data['username'] as String?;
           final displayName = data['displayName'] as String?;
           final name = (username != null && username.isNotEmpty)
@@ -253,14 +290,12 @@ class BillService {
                   ? displayName
                   : email.split('@').first;
           result.add({
-            'uid': email,
             'name': name,
             'email': email,
           });
         } else {
           // No account yet — show email as pending
           result.add({
-            'uid': email,
             'name': email,
             'email': email,
             'pending': 'true',
@@ -269,7 +304,7 @@ class BillService {
       }
       return result;
     } catch (e) {
-      log('Error getting group members: $e');
+      if (kDebugMode) log('Error getting group members: $e');
       return [];
     }
   }
@@ -306,16 +341,16 @@ class BillService {
   Future<String?> getUserIdByEmail(String email) async {
     try {
       final normalizedEmail = email.toLowerCase();
-      log('Searching for user with email: $normalizedEmail');
+      if (kDebugMode) log('Searching for user with email: $normalizedEmail');
       final snapshot = await _firestore
           .collection('users')
           .where('email', isEqualTo: normalizedEmail)
           .limit(1)
           .get();
 
-      log('Query returned ${snapshot.docs.length} results');
+      if (kDebugMode) log('Query returned ${snapshot.docs.length} results');
       for (var doc in snapshot.docs) {
-        log('Found user doc: ${doc.id} => ${doc.data()}');
+        if (kDebugMode) log('Found user doc: ${doc.id} => ${doc.data()}');
       }
 
       if (snapshot.docs.isNotEmpty) {
@@ -323,7 +358,7 @@ class BillService {
       }
       return null;
     } catch (e) {
-      log('Error getting user by email: $e');
+      if (kDebugMode) log('Error getting user by email: $e');
       return null;
     }
   }
@@ -338,8 +373,20 @@ class BillService {
       });
       return true;
     } catch (e) {
-      log('Error renaming group: $e');
+      if (kDebugMode) log('Error renaming group: $e');
       return false;
+    }
+  }
+
+  // Upload group image to Firebase Storage and return download URL
+  Future<String?> uploadGroupImage(String groupId, String uid, Uint8List bytes) async {
+    try {
+      final ref = _storage.ref().child('group_images/$groupId/$uid.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      return await ref.getDownloadURL();
+    } catch (e) {
+      if (kDebugMode) log('Error uploading group image: $e');
+      return null;
     }
   }
 
@@ -355,39 +402,43 @@ class BillService {
       await _firestore.collection('groups').doc(groupId).update(data);
       return true;
     } catch (e) {
-      log('Error updating group appearance: $e');
+      if (kDebugMode) log('Error updating group appearance: $e');
       return false;
     }
   }
 
-  // Delete a group and all its subcollections
+  // Delete a group and all its subcollections using batched writes
   Future<bool> deleteGroup(String groupId) async {
     try {
       final groupRef = _firestore.collection('groups').doc(groupId);
 
-      // Delete bills subcollection
+      // Collect all subcollection docs to delete
       final bills = await groupRef.collection('bills').get();
-      for (final doc in bills.docs) {
-        await doc.reference.delete();
-      }
-
-      // Delete settlements subcollection
       final settlements = await groupRef.collection('settlements').get();
-      for (final doc in settlements.docs) {
-        await doc.reference.delete();
-      }
-
-      // Delete categories subcollection
       final categories = await groupRef.collection('categories').get();
-      for (final doc in categories.docs) {
-        await doc.reference.delete();
+
+      final allDocs = [
+        ...bills.docs,
+        ...settlements.docs,
+        ...categories.docs,
+      ];
+
+      // Firestore batches support max 500 operations
+      const batchLimit = 500;
+      for (var i = 0; i < allDocs.length; i += batchLimit) {
+        final batch = _firestore.batch();
+        final chunk = allDocs.skip(i).take(batchLimit);
+        for (final doc in chunk) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
       }
 
-      // Delete the group document
+      // Delete the group document itself
       await groupRef.delete();
       return true;
     } catch (e) {
-      log('Error deleting group: $e');
+      if (kDebugMode) log('Error deleting group: $e');
       return false;
     }
   }
@@ -404,22 +455,23 @@ class BillService {
     double splitPercent = 50.0,
   }) async {
     try {
-      await _firestore
-          .collection('groups')
-          .doc(groupId)
-          .collection('bills')
-          .doc(billId)
-          .update({
+      final data = {
         'paidBy': paidBy,
         'amount': amount,
         'description': description,
         'category': category,
         'notes': notes,
         'splitPercent': splitPercent,
-      });
+      };
+      await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('bills')
+          .doc(billId)
+          .update(data);
       return true;
     } catch (e) {
-      log('Error updating bill: $e');
+      if (kDebugMode) log('Error updating bill: $e');
       return false;
     }
   }
@@ -435,7 +487,7 @@ class BillService {
           .delete();
       return true;
     } catch (e) {
-      log('Error deleting bill: $e');
+      if (kDebugMode) log('Error deleting bill: $e');
       return false;
     }
   }
@@ -446,17 +498,19 @@ class BillService {
     required String from,
     required String to,
     required double amount,
+    String paymentMethod = '',
   }) async {
     try {
       await _firestore.collection('groups').doc(groupId).collection('settlements').add({
         'from': from,
         'to': to,
         'amount': amount,
-        'settledAt': FieldValue.serverTimestamp(),
+        'settledAt': Timestamp.now(),
+        'paymentMethod': paymentMethod,
       });
       return true;
     } catch (e) {
-      log('Error settling up: $e');
+      if (kDebugMode) log('Error settling up: $e');
       return false;
     }
   }
@@ -471,16 +525,91 @@ class BillService {
         .snapshots();
   }
 
+  // Update a settlement
+  Future<bool> updateSettlement({
+    required String groupId,
+    required String settlementId,
+    required double amount,
+    String paymentMethod = '',
+  }) async {
+    try {
+      await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('settlements')
+          .doc(settlementId)
+          .update({
+        'amount': amount,
+        'paymentMethod': paymentMethod,
+      });
+      return true;
+    } catch (e) {
+      if (kDebugMode) log('Error updating settlement: $e');
+      return false;
+    }
+  }
+
+  // Delete a settlement
+  Future<bool> deleteSettlement({
+    required String groupId,
+    required String settlementId,
+  }) async {
+    try {
+      await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('settlements')
+          .doc(settlementId)
+          .delete();
+      return true;
+    } catch (e) {
+      if (kDebugMode) log('Error deleting settlement: $e');
+      return false;
+    }
+  }
+
+  // Bulk delete bills and settlements
+  Future<bool> bulkDeleteActivity({
+    required String groupId,
+    required Set<String> billIds,
+    required Set<String> settlementIds,
+  }) async {
+    try {
+      final allIds = <DocumentReference>[];
+      for (final id in billIds) {
+        allIds.add(_firestore.collection('groups').doc(groupId).collection('bills').doc(id));
+      }
+      for (final id in settlementIds) {
+        allIds.add(_firestore.collection('groups').doc(groupId).collection('settlements').doc(id));
+      }
+
+      const batchLimit = 500;
+      for (var i = 0; i < allIds.length; i += batchLimit) {
+        final batch = _firestore.batch();
+        final chunk = allIds.skip(i).take(batchLimit);
+        for (final ref in chunk) {
+          batch.delete(ref);
+        }
+        await batch.commit();
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) log('Error bulk deleting activity: $e');
+      return false;
+    }
+  }
+
   /// Delete all data associated with a user:
   /// - Remove from groups (delete group if sole member)
   /// - Delete invites (sent and received)
   /// - Delete feedback
   /// - Delete user document
   Future<bool> deleteAllUserData(String email, String uid) async {
-    try {
-      final normalizedEmail = email.toLowerCase();
+    final normalizedEmail = email.toLowerCase();
+    var success = true;
 
-      // 1. Handle groups
+    // 1. Handle groups
+    try {
       final groupsSnap = await _firestore
           .collection('groups')
           .where('members', arrayContains: normalizedEmail)
@@ -492,47 +621,208 @@ class BillService {
           // Sole member — delete the entire group and subcollections
           await deleteGroup(doc.id);
         } else {
+          // Collect user's bills and settlements in this shared group
+          final bills = await doc.reference
+              .collection('bills')
+              .where('paidBy', isEqualTo: normalizedEmail)
+              .get();
+          final settlementsFrom = await doc.reference
+              .collection('settlements')
+              .where('from', isEqualTo: normalizedEmail)
+              .get();
+          final settlementsTo = await doc.reference
+              .collection('settlements')
+              .where('to', isEqualTo: normalizedEmail)
+              .get();
+
+          final allDocs = [
+            ...bills.docs,
+            ...settlementsFrom.docs,
+            ...settlementsTo.docs,
+          ];
+
+          const batchLimit = 500;
+          for (var i = 0; i < allDocs.length; i += batchLimit) {
+            final batch = _firestore.batch();
+            final chunk = allDocs.skip(i).take(batchLimit);
+            for (final d in chunk) {
+              batch.delete(d.reference);
+            }
+            await batch.commit();
+          }
+
           // Remove user from the group
           await doc.reference.update({
             'members': FieldValue.arrayRemove([normalizedEmail]),
           });
         }
       }
+    } catch (e) {
+      if (kDebugMode) log('Error deleting groups: $e');
+      success = false;
+    }
 
-      // 2. Delete invites where user is invitee
+    // 2. Delete invites and feedback
+    try {
       final invitesReceived = await _firestore
           .collection('invites')
           .where('inviteeEmail', isEqualTo: normalizedEmail)
           .get();
-      for (final doc in invitesReceived.docs) {
-        await doc.reference.delete();
-      }
-
-      // 3. Delete invites where user is inviter
       final invitesSent = await _firestore
           .collection('invites')
           .where('inviterUid', isEqualTo: uid)
           .get();
-      for (final doc in invitesSent.docs) {
-        await doc.reference.delete();
-      }
-
-      // 4. Delete feedback submitted by user
       final feedbackSnap = await _firestore
           .collection('feedback')
           .where('email', isEqualTo: normalizedEmail)
           .get();
-      for (final doc in feedbackSnap.docs) {
-        await doc.reference.delete();
+
+      final allDocs = [
+        ...invitesReceived.docs,
+        ...invitesSent.docs,
+        ...feedbackSnap.docs,
+      ];
+
+      const batchLimit = 500;
+      for (var i = 0; i < allDocs.length; i += batchLimit) {
+        final batch = _firestore.batch();
+        final chunk = allDocs.skip(i).take(batchLimit);
+        for (final d in chunk) {
+          batch.delete(d.reference);
+        }
+        await batch.commit();
       }
-
-      // 5. Delete user document
-      await _firestore.collection('users').doc(uid).delete();
-
-      return true;
     } catch (e) {
-      log('Error deleting all user data: $e');
-      return false;
+      if (kDebugMode) log('Error deleting invites/feedback: $e');
+      success = false;
     }
+
+    // 3. Delete user document
+    try {
+      await _firestore.collection('users').doc(uid).delete();
+    } catch (e) {
+      if (kDebugMode) log('Error deleting user document: $e');
+      success = false;
+    }
+
+    return success;
+  }
+
+  /// Compute net balance from bills and settlements.
+  /// Returns positive = you owe, negative = you are owed.
+  static double computeNetBalance({
+    required List<Bill> bills,
+    required List<Map<String, dynamic>> settlements,
+    required String userEmail,
+  }) {
+    double totalYouOwe = 0;
+    double totalTheyOwe = 0;
+    for (final bill in bills) {
+      final otherOwes = bill.amount * (100 - bill.splitPercent) / 100;
+      if (bill.paidBy == userEmail) {
+        totalTheyOwe += otherOwes;
+      } else {
+        totalYouOwe += otherOwes;
+      }
+    }
+
+    double settledByYou = 0;
+    double settledByThem = 0;
+    for (final s in settlements) {
+      final amount = (s['amount'] as num?)?.toDouble() ?? 0;
+      final from = s['from'] as String? ?? '';
+      if (from == userEmail) {
+        settledByYou += amount;
+      } else {
+        settledByThem += amount;
+      }
+    }
+
+    final rawDifference = totalYouOwe - totalTheyOwe;
+    final result = rawDifference + settledByThem - settledByYou;
+    return double.parse(result.toStringAsFixed(2));
+  }
+
+  /// Compute running balance at each settlement point in a timeline.
+  /// Modifies timeline items in-place, adding 'remainingAtTime' to settlements.
+  /// Timeline should be sorted newest-first; this reverses internally.
+  static void computeRunningBalances({
+    required List<Map<String, dynamic>> timeline,
+    required String userEmail,
+  }) {
+    double runningOwed = 0;
+    double runningSettled = 0;
+    final chronological = List<Map<String, dynamic>>.from(timeline.reversed);
+    for (final item in chronological) {
+      if (item['type'] == 'bill') {
+        final bill = item['data'] as Bill;
+        final otherOwes = bill.amount * (100 - bill.splitPercent) / 100;
+        if (bill.paidBy == userEmail) {
+          runningOwed -= otherOwes; // they owe you
+        } else {
+          runningOwed += otherOwes; // you owe them
+        }
+      } else {
+        runningSettled += item['amount'] as double;
+        final remaining = (runningOwed.abs() - runningSettled).clamp(0.0, double.infinity);
+        item['remainingAtTime'] = remaining;
+      }
+    }
+  }
+
+  /// Returns a real-time stream of the net balance for [userEmail] in [groupId].
+  /// Positive = you owe, Negative = you are owed.
+  Stream<double> getGroupBalanceStream(String groupId, String userEmail) {
+    final billStream = _firestore
+        .collection('groups')
+        .doc(groupId)
+        .collection('bills')
+        .snapshots();
+    final settlementStream = _firestore
+        .collection('groups')
+        .doc(groupId)
+        .collection('settlements')
+        .snapshots();
+
+    // Combine both streams; re-evaluate whenever either emits
+    List<QueryDocumentSnapshot>? lastBills;
+    List<QueryDocumentSnapshot>? lastSettlements;
+
+    double compute() {
+      final bills = (lastBills ?? <QueryDocumentSnapshot>[])
+          .map((doc) => Bill.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .toList();
+      final settlements = (lastSettlements ?? <QueryDocumentSnapshot>[])
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+      return computeNetBalance(
+        bills: bills,
+        settlements: settlements,
+        userEmail: userEmail,
+      );
+    }
+
+    final controller = StreamController<double>.broadcast();
+
+    final billSub = billStream.listen((snap) {
+      lastBills = snap.docs;
+      if (lastSettlements != null && !controller.isClosed) {
+        controller.add(compute());
+      }
+    });
+    final settleSub = settlementStream.listen((snap) {
+      lastSettlements = snap.docs;
+      if (lastBills != null && !controller.isClosed) {
+        controller.add(compute());
+      }
+    });
+
+    controller.onCancel = () {
+      billSub.cancel();
+      settleSub.cancel();
+      controller.close();
+    };
+
+    return controller.stream;
   }
 }

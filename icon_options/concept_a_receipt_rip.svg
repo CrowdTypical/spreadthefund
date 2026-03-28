@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="leftHalf">
+      <!-- Jagged rip edge on the right side of the left piece -->
+      <polygon points="
+        0,0
+        268,0
+        262,20
+        270,40
+        258,60
+        272,80
+        256,100
+        268,120
+        254,140
+        270,160
+        260,180
+        274,200
+        256,220
+        266,240
+        252,260
+        272,280
+        258,300
+        270,320
+        254,340
+        268,360
+        260,380
+        272,400
+        256,420
+        264,440
+        258,460
+        270,480
+        256,512
+        0,512
+      "/>
+    </clipPath>
+    <clipPath id="rightHalf">
+      <!-- Jagged rip edge on the left side of the right piece -->
+      <polygon points="
+        268,0
+        512,0
+        512,512
+        256,512
+        270,480
+        258,460
+        264,440
+        256,420
+        272,400
+        260,380
+        268,360
+        254,340
+        270,320
+        258,300
+        272,280
+        252,260
+        266,240
+        256,220
+        274,200
+        260,180
+        270,160
+        254,140
+        268,120
+        256,100
+        272,80
+        258,60
+        270,40
+        262,20
+        268,0
+      "/>
+    </clipPath>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00E5CC"/>
+      <stop offset="100%" style="stop-color:#42A5F5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="#0A0E14"/>
+
+  <!-- LEFT RECEIPT HALF — shifted left and rotated slightly -->
+  <g clip-path="url(#leftHalf)" transform="translate(-18, 6) rotate(-2, 256, 256)">
+    <!-- Receipt paper -->
+    <rect x="80" y="40" width="360" height="432" fill="#141A22" stroke="#1E2A35" stroke-width="2"/>
+
+    <!-- Zigzag top edge (receipt perforation) -->
+    <polygon points="
+      80,40 92,56 104,40 116,56 128,40 140,56 152,40 164,56 176,40 188,56
+      200,40 212,56 224,40 236,56 248,40 260,56 272,40 284,56 296,40 308,56
+      320,40 332,56 344,40 356,56 368,40 380,56 392,40 404,56 416,40 428,56 440,40
+      440,56 80,56
+    " fill="#141A22"/>
+    <!-- Zigzag bottom edge -->
+    <polygon points="
+      80,472 92,456 104,472 116,456 128,472 140,456 152,472 164,456 176,472 188,456
+      200,472 212,456 224,472 236,456 248,472 260,456 272,472 284,456 296,472 308,456
+      320,472 332,456 344,472 356,456 368,472 380,456 392,472 404,456 416,472 428,456 440,472
+      440,456 80,456
+    " fill="#141A22"/>
+
+    <!-- Receipt lines -->
+    <rect x="110" y="80" width="180" height="4" fill="#00E5CC" opacity="0.9"/>
+    <rect x="110" y="100" width="120" height="3" fill="#556677"/>
+    <rect x="110" y="116" width="160" height="3" fill="#556677"/>
+    <rect x="110" y="132" width="140" height="3" fill="#556677"/>
+    <rect x="110" y="160" width="180" height="2" fill="#1E2A35"/>
+
+    <!-- Item lines -->
+    <rect x="110" y="178" width="100" height="3" fill="#8899AA"/>
+    <rect x="320" y="178" width="50" height="3" fill="#8899AA"/>
+    <rect x="110" y="198" width="120" height="3" fill="#8899AA"/>
+    <rect x="320" y="198" width="40" height="3" fill="#8899AA"/>
+    <rect x="110" y="218" width="90" height="3" fill="#8899AA"/>
+    <rect x="320" y="218" width="55" height="3" fill="#8899AA"/>
+    <rect x="110" y="238" width="110" height="3" fill="#8899AA"/>
+    <rect x="320" y="238" width="45" height="3" fill="#8899AA"/>
+
+    <!-- Separator -->
+    <line x1="110" y1="262" x2="400" y2="262" stroke="#1E2A35" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <!-- Total line — teal accent -->
+    <rect x="110" y="280" width="70" height="4" fill="#00E5CC"/>
+    <rect x="300" y="280" width="70" height="4" fill="#00E5CC"/>
+
+    <!-- Dotted separator -->
+    <line x1="110" y1="310" x2="400" y2="310" stroke="#1E2A35" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <!-- Bottom text lines -->
+    <rect x="160" y="330" width="180" height="3" fill="#556677"/>
+    <rect x="180" y="350" width="140" height="3" fill="#556677"/>
+
+    <!-- "STF" branding text at bottom -->
+    <text x="256" y="400" font-family="monospace" font-size="24" font-weight="bold"
+          fill="url(#brandGrad)" text-anchor="middle" letter-spacing="6">STF</text>
+  </g>
+
+  <!-- RIGHT RECEIPT HALF — shifted right and rotated opposite -->
+  <g clip-path="url(#rightHalf)" transform="translate(18, -6) rotate(2, 256, 256)">
+    <!-- Receipt paper -->
+    <rect x="80" y="40" width="360" height="432" fill="#141A22" stroke="#1E2A35" stroke-width="2"/>
+
+    <!-- Zigzag top edge -->
+    <polygon points="
+      80,40 92,56 104,40 116,56 128,40 140,56 152,40 164,56 176,40 188,56
+      200,40 212,56 224,40 236,56 248,40 260,56 272,40 284,56 296,40 308,56
+      320,40 332,56 344,40 356,56 368,40 380,56 392,40 404,56 416,40 428,56 440,40
+      440,56 80,56
+    " fill="#141A22"/>
+    <!-- Zigzag bottom edge -->
+    <polygon points="
+      80,472 92,456 104,472 116,456 128,472 140,456 152,472 164,456 176,472 188,456
+      200,472 212,456 224,472 236,456 248,472 260,456 272,472 284,456 296,472 308,456
+      320,472 332,456 344,472 356,456 368,472 380,456 392,472 404,456 416,472 428,456 440,472
+      440,456 80,456
+    " fill="#141A22"/>
+
+    <!-- Receipt lines -->
+    <rect x="110" y="80" width="180" height="4" fill="#00E5CC" opacity="0.9"/>
+    <rect x="110" y="100" width="120" height="3" fill="#556677"/>
+    <rect x="110" y="116" width="160" height="3" fill="#556677"/>
+    <rect x="110" y="132" width="140" height="3" fill="#556677"/>
+    <rect x="110" y="160" width="180" height="2" fill="#1E2A35"/>
+
+    <!-- Item lines -->
+    <rect x="110" y="178" width="100" height="3" fill="#8899AA"/>
+    <rect x="320" y="178" width="50" height="3" fill="#8899AA"/>
+    <rect x="110" y="198" width="120" height="3" fill="#8899AA"/>
+    <rect x="320" y="198" width="40" height="3" fill="#8899AA"/>
+    <rect x="110" y="218" width="90" height="3" fill="#8899AA"/>
+    <rect x="320" y="218" width="55" height="3" fill="#8899AA"/>
+    <rect x="110" y="238" width="110" height="3" fill="#8899AA"/>
+    <rect x="320" y="238" width="45" height="3" fill="#8899AA"/>
+
+    <!-- Separator -->
+    <line x1="110" y1="262" x2="400" y2="262" stroke="#1E2A35" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <!-- Total line -->
+    <rect x="110" y="280" width="70" height="4" fill="#00E5CC"/>
+    <rect x="300" y="280" width="70" height="4" fill="#00E5CC"/>
+
+    <line x1="110" y1="310" x2="400" y2="310" stroke="#1E2A35" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <rect x="160" y="330" width="180" height="3" fill="#556677"/>
+    <rect x="180" y="350" width="140" height="3" fill="#556677"/>
+
+    <text x="256" y="400" font-family="monospace" font-size="24" font-weight="bold"
+          fill="url(#brandGrad)" text-anchor="middle" letter-spacing="6">STF</text>
+  </g>
+
+  <!-- Red glitch accent lines at the rip (brand's error/accent red) -->
+  <rect x="240" y="100" width="32" height="3" fill="#FF4C5E" opacity="0.7"/>
+  <rect x="248" y="200" width="24" height="3" fill="#FF4C5E" opacity="0.6"/>
+  <rect x="236" y="300" width="40" height="3" fill="#FF4C5E" opacity="0.7"/>
+  <rect x="250" y="380" width="20" height="3" fill="#FF4C5E" opacity="0.5"/>
+
+  <!-- Small teal pixel debris at the rip -->
+  <rect x="260" y="150" width="4" height="4" fill="#00E5CC" opacity="0.5"/>
+  <rect x="250" y="250" width="3" height="3" fill="#00E5CC" opacity="0.4"/>
+  <rect x="265" y="340" width="5" height="3" fill="#00E5CC" opacity="0.5"/>
+</svg>

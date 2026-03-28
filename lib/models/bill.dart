@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Bill {
@@ -38,4 +42,15 @@ class Bill {
       settled: map['settled'] ?? false,
     );
   }
+
+  Map<String, dynamic> toMap() => {
+        'paidBy': paidBy,
+        'amount': amount,
+        'description': description,
+        'category': category,
+        'notes': notes,
+        'splitPercent': splitPercent,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'settled': settled,
+      };
 }

@@ -1,7 +1,15 @@
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 import '../services/bill_service.dart';
 import '../services/email_service.dart';
+import '../constants/app_constants.dart';
+import '../constants/theme_constants.dart';
 
 class PartnerSetupScreen extends StatefulWidget {
   final Function(String) onGroupCreated;
@@ -22,7 +30,7 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
   @override
   void initState() {
     super.initState();
-    _billService = BillService();
+    _billService = context.read<BillService>();
   }
 
   @override
@@ -45,12 +53,12 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF00E5CC), width: 1),
+                border: Border.all(color: AppColors.accent, width: 1),
               ),
               child: const Icon(
                 Icons.person_add,
                 size: 48,
-                color: Color(0xFF00E5CC),
+                color: AppColors.accent,
               ),
             ),
             const SizedBox(height: 24),
@@ -61,7 +69,7 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2,
-                color: Color(0xFFE0E0E0),
+                color: AppColors.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -71,36 +79,37 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 12,
-                color: Color(0xFF8899AA),
+                color: AppColors.textMuted,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
             TextField(
               controller: _emailController,
-              style: const TextStyle(fontFamily: 'monospace', color: Color(0xFFE0E0E0)),
+              maxLength: 254,
+              style: const TextStyle(fontFamily: 'monospace', color: AppColors.textPrimary),
               decoration: InputDecoration(
                 labelText: 'EMAIL',
-                labelStyle: const TextStyle(fontFamily: 'monospace', fontSize: 12, letterSpacing: 1, color: Color(0xFF8899AA)),
+                labelStyle: const TextStyle(fontFamily: 'monospace', fontSize: 12, letterSpacing: 1, color: AppColors.textMuted),
                 hintText: 'partner@example.com',
                 hintStyle: const TextStyle(fontFamily: 'monospace', color: Color(0xFF455566)),
-                prefixIcon: const Icon(Icons.email, color: Color(0xFF8899AA)),
+                prefixIcon: const Icon(Icons.email, color: AppColors.textMuted),
                 enabledBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(color: Color(0xFF00E5CC)),
+                  borderSide: BorderSide(color: AppColors.accent),
                 ),
                 errorBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(color: Color(0xFFFF4C5E)),
+                  borderSide: BorderSide(color: AppColors.danger),
                 ),
                 filled: true,
-                fillColor: const Color(0xFF141A22),
+                fillColor: AppColors.surface,
                 errorText: _errorMessage,
-                errorStyle: const TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
+                errorStyle: const TextStyle(fontFamily: 'monospace', color: AppColors.danger),
               ),
               keyboardType: TextInputType.emailAddress,
               enabled: !_isLoading,
@@ -112,14 +121,14 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
                 onPressed: _isLoading ? null : _createGroup,
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(color: Color(0xFF00E5CC)),
+                  side: const BorderSide(color: AppColors.accent),
                   shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                 ),
                 child: _isLoading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00E5CC)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
                       )
                     : const Text(
                         'INVITE',
@@ -128,7 +137,7 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 2,
-                          color: Color(0xFF00E5CC),
+                          color: AppColors.accent,
                         ),
                       ),
               ),
@@ -147,12 +156,12 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
       return;
     }
 
-    if (!email.contains('@')) {
+    if (!isValidEmail(email)) {
       setState(() => _errorMessage = 'Please enter a valid email');
       return;
     }
 
-    final currentUser = FirebaseAuth.instance.currentUser!;
+    final currentUser = context.read<AuthService>().currentUser!;
     if (email.toLowerCase() == currentUser.email?.toLowerCase()) {
       setState(() => _errorMessage = 'You cannot invite yourself');
       return;
@@ -169,8 +178,18 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
 
       if (widget.groupId != null) {
         targetGroupId = widget.groupId!;
+        // Check member limit before proceeding
+        final groupDoc = await FirebaseFirestore.instance
+            .collection('groups')
+            .doc(targetGroupId)
+            .get();
+        final members = (groupDoc.data()?['members'] as List?) ?? [];
+        if (members.length >= BillService.maxGroupMembers) {
+          setState(() => _errorMessage = 'This group already has ${BillService.maxGroupMembers} members');
+          return;
+        }
         // Get the group name for the invite
-        groupName = 'Spread the Fund Group';
+        groupName = 'Spread the Funds Group';
       } else {
         // Create a new group first
         final newGroupId = await _billService.createNamedGroup(
@@ -186,7 +205,7 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
         widget.onGroupCreated(newGroupId);
       }
 
-      // Always add by email — no UID lookup needed
+      // Always add by email â€” no UID lookup needed
       await _billService.addMemberToGroup(
         targetGroupId,
         email.toLowerCase(),
@@ -211,12 +230,12 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: const Color(0xFF141A22),
+            backgroundColor: AppColors.surface,
             content: Text(
               emailSent
                   ? 'Invite email sent to $email!'
-                  : 'Invite saved! ${EmailService.isConfigured ? "Email failed to send." : "Configure email credentials to send notifications."}',
-              style: const TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+                  : 'Invite saved! Email failed to send.',
+              style: const TextStyle(fontFamily: 'monospace', color: AppColors.accent),
             ),
             duration: const Duration(seconds: 3),
           ),

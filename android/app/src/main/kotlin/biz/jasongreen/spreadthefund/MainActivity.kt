@@ -1,4 +1,4 @@
-package com.example.bill_splitter
+package biz.jasongreen.spreadthefund
 
 import io.flutter.embedding.android.FlutterActivity
 

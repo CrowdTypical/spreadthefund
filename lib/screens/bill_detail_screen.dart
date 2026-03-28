@@ -1,24 +1,15 @@
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../services/auth_service.dart';
 import '../models/bill.dart';
 import '../services/bill_service.dart';
-
-// Category icons (same as add_bill_screen)
-IconData _iconForCategory(String name) {
-  const map = {
-    'food': Icons.restaurant,
-    'transport': Icons.directions_car,
-    'groceries': Icons.shopping_cart,
-    'entertainment': Icons.movie,
-    'utilities': Icons.bolt,
-    'rent': Icons.home,
-    'shopping': Icons.shopping_bag,
-    'health': Icons.medical_services,
-  };
-  return map[name.toLowerCase()] ?? Icons.receipt_long;
-}
+import '../constants/theme_constants.dart';
 
 class BillDetailScreen extends StatefulWidget {
   final Bill bill;
@@ -57,7 +48,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     _notesController = TextEditingController(text: widget.bill.notes);
     _splitPercent = widget.bill.splitPercent.clamp(5, 95).toDouble();
     _paidBy = widget.bill.paidBy;
-    _category = widget.bill.description;
+    _category = widget.bill.category;
     _loadData();
   }
 
@@ -78,20 +69,20 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     super.dispose();
   }
 
-  String _memberName(String uid) {
+  String _memberName(String email) {
     for (final m in _members) {
-      if (m['uid'] == uid) return m['name'] ?? uid;
+      if (m['email'] == email) return m['name'] ?? email;
     }
-    return uid;
+    return email;
   }
 
   @override
   Widget build(BuildContext context) {
     final bill = widget.bill;
-    final currentUser = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
+    final currentUser = context.read<AuthService>().currentUser!.email!.toLowerCase();
     final isYourBill = bill.paidBy == currentUser;
     final accentColor =
-        isYourBill ? const Color(0xFF00E5CC) : const Color(0xFFFF4C5E);
+        isYourBill ? AppColors.accent : AppColors.danger;
 
     final amount = double.tryParse(_amountController.text) ?? bill.amount;
     final owedAmount = isYourBill
@@ -99,9 +90,9 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
         : amount * _splitPercent / 100;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E14),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0E14),
+        backgroundColor: AppColors.background,
         title: Text(
           _editing ? 'EDIT BILL' : 'BILL DETAILS',
           style: const TextStyle(
@@ -113,7 +104,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
         actions: [
           if (!_editing)
             IconButton(
-              icon: const Icon(Icons.edit, color: Color(0xFF00E5CC)),
+              icon: const Icon(Icons.edit, color: AppColors.accent),
               onPressed: () => setState(() => _editing = true),
             ),
         ],
@@ -121,11 +112,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ── Header: icon + category + amount ──
+          // â”€â”€ Header: icon + category + amount â”€â”€
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF141A22),
+              color: AppColors.surface,
               border: Border.all(color: accentColor.withValues(alpha: 0.3)),
             ),
             child: Column(
@@ -134,14 +125,20 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.1),
-                    border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                    color: colorForCategory(bill.category.isNotEmpty
+                        ? bill.category
+                        : bill.description).withValues(alpha: 0.12),
+                    border: Border.all(color: colorForCategory(bill.category.isNotEmpty
+                        ? bill.category
+                        : bill.description).withValues(alpha: 0.3)),
                   ),
                   child: Icon(
-                    _iconForCategory(bill.category.isNotEmpty
+                    iconForCategory(bill.category.isNotEmpty
                         ? bill.category
                         : bill.description),
-                    color: accentColor,
+                    color: colorForCategory(bill.category.isNotEmpty
+                        ? bill.category
+                        : bill.description),
                     size: 32,
                   ),
                 ),
@@ -153,7 +150,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 2,
-                    color: Color(0xFFE0E0E0),
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -173,7 +170,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11,
-                    color: Color(0xFF556677),
+                    color: AppColors.textDim,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -183,12 +180,12 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
           const SizedBox(height: 12),
 
-          // ── Split breakdown ──
+          // â”€â”€ Split breakdown â”€â”€
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF141A22),
-              border: Border.all(color: const Color(0xFF1E2A35)),
+              color: AppColors.surface,
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,7 +196,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                     fontFamily: 'monospace',
                     fontSize: 11,
                     letterSpacing: 1,
-                    color: Color(0xFF8899AA),
+                    color: AppColors.textMuted,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -207,26 +204,26 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   'Paid by',
                   _memberName(bill.paidBy),
                   isYourBill
-                      ? const Color(0xFF00E5CC)
-                      : const Color(0xFFFF4C5E),
+                      ? AppColors.accent
+                      : AppColors.danger,
                 ),
                 const SizedBox(height: 8),
                 _detailRow(
                   'Split',
                   '${bill.splitPercent.round()} / ${(100 - bill.splitPercent).round()}',
-                  const Color(0xFFE0E0E0),
+                  AppColors.textPrimary,
                 ),
                 const SizedBox(height: 8),
                 _detailRow(
                   'Payer\'s share',
                   '\$${(bill.amount * bill.splitPercent / 100).toStringAsFixed(2)}',
-                  const Color(0xFF00E5CC),
+                  AppColors.accent,
                 ),
                 const SizedBox(height: 8),
                 _detailRow(
                   'Other\'s share',
                   '\$${(bill.amount * (100 - bill.splitPercent) / 100).toStringAsFixed(2)}',
-                  const Color(0xFFFF4C5E),
+                  AppColors.danger,
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -250,15 +247,15 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
             ),
           ),
 
-          // ── Notes ──
+          // â”€â”€ Notes â”€â”€
           if (bill.notes.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF141A22),
-                border: Border.all(color: const Color(0xFF1E2A35)),
+                color: AppColors.surface,
+                border: Border.all(color: AppColors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +266,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                       fontFamily: 'monospace',
                       fontSize: 11,
                       letterSpacing: 1,
-                      color: Color(0xFF8899AA),
+                      color: AppColors.textMuted,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -278,7 +275,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                     style: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 13,
-                      color: Color(0xFFE0E0E0),
+                      color: AppColors.textPrimary,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -289,25 +286,25 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
           const SizedBox(height: 12),
 
-          // ── Edit section ──
+          // â”€â”€ Edit section â”€â”€
           if (_editing) ...[
             _buildEditSection(),
             const SizedBox(height: 12),
           ],
 
-          // ── Metadata toggle ──
+          // â”€â”€ Metadata toggle â”€â”€
           GestureDetector(
             onTap: () => setState(() => _showMeta = !_showMeta),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141A22),
-                border: Border.all(color: const Color(0xFF1E2A35)),
+                color: AppColors.surface,
+                border: Border.all(color: AppColors.border),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.bug_report,
-                      color: Color(0xFF556677), size: 16),
+                      color: AppColors.textDim, size: 16),
                   const SizedBox(width: 8),
                   const Text(
                     'DEBUG / METADATA',
@@ -315,7 +312,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                       fontFamily: 'monospace',
                       fontSize: 11,
                       letterSpacing: 1,
-                      color: Color(0xFF556677),
+                      color: AppColors.textDim,
                     ),
                   ),
                   const Spacer(),
@@ -323,7 +320,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                     _showMeta
                         ? Icons.keyboard_arrow_up
                         : Icons.keyboard_arrow_down,
-                    color: const Color(0xFF556677),
+                    color: AppColors.textDim,
                   ),
                 ],
               ),
@@ -335,7 +332,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFF0D1117),
-                border: Border.all(color: const Color(0xFF1E2A35)),
+                border: Border.all(color: AppColors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,14 +361,14 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
           const SizedBox(height: 24),
 
-          // ── Delete button ──
+          // â”€â”€ Delete button â”€â”€
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
               onPressed: () => _confirmDelete(),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(color: Color(0xFFFF4C5E)),
+                side: const BorderSide(color: AppColors.danger),
                 shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero),
               ),
@@ -382,7 +379,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
-                  color: Color(0xFFFF4C5E),
+                  color: AppColors.danger,
                 ),
               ),
             ),
@@ -394,16 +391,16 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     );
   }
 
-  // ── Edit section ──────────────────────────────────────────
+  // â”€â”€ Edit section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildEditSection() {
-    final currentUid = FirebaseAuth.instance.currentUser!.email!.toLowerCase();
+    final currentEmail = context.read<AuthService>().currentUser!.email!.toLowerCase();
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141A22),
-        border: Border.all(color: const Color(0xFF00E5CC)),
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.accent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,7 +411,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
               fontFamily: 'monospace',
               fontSize: 11,
               letterSpacing: 1,
-              color: Color(0xFF00E5CC),
+              color: AppColors.accent,
             ),
           ),
           const SizedBox(height: 12),
@@ -422,29 +419,30 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
           // Amount
           TextFormField(
             controller: _amountController,
+            maxLength: 12,
             style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 20,
-                color: Color(0xFF00E5CC)),
+                color: AppColors.accent),
             decoration: const InputDecoration(
               labelText: 'AMOUNT',
               labelStyle: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 12,
                   letterSpacing: 1,
-                  color: Color(0xFF8899AA)),
+                  color: AppColors.textMuted),
               prefixText: '\$ ',
               prefixStyle: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 20,
-                  color: Color(0xFF00E5CC)),
+                  color: AppColors.accent),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(color: Color(0xFF00E5CC)),
+                borderSide: BorderSide(color: AppColors.accent),
               ),
               filled: true,
               fillColor: Color(0xFF0D1117),
@@ -464,18 +462,18 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   fontFamily: 'monospace',
                   fontSize: 12,
                   letterSpacing: 1,
-                  color: Color(0xFF8899AA),
+                  color: AppColors.textMuted,
                 ),
               ),
             ],
           ),
           SliderTheme(
             data: SliderThemeData(
-              activeTrackColor: const Color(0xFF00E5CC),
+              activeTrackColor: AppColors.accent,
               inactiveTrackColor:
-                  const Color(0xFFFF4C5E).withValues(alpha: 0.4),
-              thumbColor: const Color(0xFF00E5CC),
-              overlayColor: const Color(0xFF00E5CC).withValues(alpha: 0.15),
+                  AppColors.danger.withValues(alpha: 0.4),
+              thumbColor: AppColors.accent,
+              overlayColor: AppColors.accent.withValues(alpha: 0.15),
               trackHeight: 6,
               thumbShape:
                   const RoundSliderThumbShape(enabledThumbRadius: 10),
@@ -509,25 +507,25 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                 fontFamily: 'monospace',
                 fontSize: 12,
                 letterSpacing: 1,
-                color: Color(0xFF8899AA),
+                color: AppColors.textMuted,
               ),
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               key: ValueKey(_paidBy),
-              initialValue: _members.any((m) => m['uid'] == _paidBy) ? _paidBy : null,
-              dropdownColor: const Color(0xFF141A22),
+              initialValue: _members.any((m) => m['email'] == _paidBy) ? _paidBy : null,
+              dropdownColor: AppColors.surface,
               isExpanded: true,
               style: const TextStyle(
-                  fontFamily: 'monospace', color: Color(0xFFE0E0E0)),
+                  fontFamily: 'monospace', color: AppColors.textPrimary),
               decoration: const InputDecoration(
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(color: Color(0xFF00E5CC)),
+                  borderSide: BorderSide(color: AppColors.accent),
                 ),
                 filled: true,
                 fillColor: Color(0xFF0D1117),
@@ -536,42 +534,28 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
               ),
               selectedItemBuilder: (context) {
                 return _members.map((m) {
-                  final isMe = m['uid'] == currentUid;
-                  final email = m['email'] ?? '';
-                  final showEmail = email.isNotEmpty && email != m['name'];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        isMe
-                            ? '${m['name']!.toUpperCase()} (YOU)'
-                            : m['name']!.toUpperCase(),
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 14,
-                          color: Color(0xFFE0E0E0),
-                        ),
+                  final isMe = m['email'] == currentEmail;
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      isMe
+                          ? '${m['name']!.toUpperCase()} (YOU)'
+                          : m['name']!.toUpperCase(),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
                       ),
-                      if (showEmail)
-                        Text(
-                          email,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 10,
-                            color: Color(0xFF556677),
-                          ),
-                        ),
-                    ],
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                 }).toList();
               },
               items: _members.map((m) {
-                final isMe = m['uid'] == currentUid;
+                final isMe = m['email'] == currentEmail;
                 final showEmail = m['email']!.isNotEmpty && m['email'] != m['name'];
                 return DropdownMenuItem(
-                  value: m['uid'],
+                  value: m['email'],
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -588,7 +572,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 10,
-                            color: Color(0xFF556677),
+                            color: AppColors.textDim,
                           ),
                         ),
                     ],
@@ -603,10 +587,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
           // Notes
           TextField(
             controller: _notesController,
+            maxLength: 500,
             style: const TextStyle(
               fontFamily: 'monospace',
               fontSize: 14,
-              color: Color(0xFFE0E0E0),
+              color: AppColors.textPrimary,
             ),
             maxLines: 3,
             minLines: 1,
@@ -616,15 +601,15 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                 fontFamily: 'monospace',
                 fontSize: 12,
                 letterSpacing: 1,
-                color: Color(0xFF8899AA),
+                color: AppColors.textMuted,
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(color: Color(0xFF1E2A35)),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(color: Color(0xFF00E5CC)),
+                borderSide: BorderSide(color: AppColors.accent),
               ),
               filled: true,
               fillColor: Color(0xFF0D1117),
@@ -651,7 +636,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFF8899AA)),
+                    side: const BorderSide(color: AppColors.textMuted),
                     shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero),
                   ),
@@ -662,7 +647,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1,
-                      color: Color(0xFF8899AA),
+                      color: AppColors.textMuted,
                     ),
                   ),
                 ),
@@ -673,7 +658,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   onPressed: _saving ? null : _saveChanges,
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFF00E5CC)),
+                    side: const BorderSide(color: AppColors.accent),
                     shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero),
                   ),
@@ -682,7 +667,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Color(0xFF00E5CC)),
+                              strokeWidth: 2, color: AppColors.accent),
                         )
                       : const Text(
                           'SAVE',
@@ -691,7 +676,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1,
-                            color: Color(0xFF00E5CC),
+                            color: AppColors.accent,
                           ),
                         ),
                 ),
@@ -712,12 +697,12 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isActive
-                ? const Color(0xFF00E5CC).withValues(alpha: 0.15)
+                ? AppColors.accent.withValues(alpha: 0.15)
                 : Colors.transparent,
             border: Border.all(
               color: isActive
-                  ? const Color(0xFF00E5CC)
-                  : const Color(0xFF1E2A35),
+                  ? AppColors.accent
+                  : AppColors.border,
             ),
           ),
           child: Text(
@@ -728,8 +713,8 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
               fontSize: 10,
               fontWeight: FontWeight.bold,
               color: isActive
-                  ? const Color(0xFF00E5CC)
-                  : const Color(0xFF8899AA),
+                  ? AppColors.accent
+                  : AppColors.textMuted,
             ),
           ),
         ),
@@ -737,7 +722,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _detailRow(String label, String value, Color valueColor) {
     return Row(
@@ -748,7 +733,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
           style: const TextStyle(
             fontFamily: 'monospace',
             fontSize: 12,
-            color: Color(0xFF8899AA),
+            color: AppColors.textMuted,
           ),
         ),
         Text(
@@ -775,7 +760,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
             style: const TextStyle(
               fontFamily: 'monospace',
               fontSize: 10,
-              color: Color(0xFF556677),
+              color: AppColors.textDim,
             ),
           ),
         ),
@@ -785,12 +770,12 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
               Clipboard.setData(ClipboardData(text: value));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  backgroundColor: const Color(0xFF141A22),
+                  backgroundColor: AppColors.surface,
                   duration: const Duration(seconds: 1),
                   content: Text(
                     'Copied: $label',
                     style: const TextStyle(
-                        fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+                        fontFamily: 'monospace', color: AppColors.accent),
                   ),
                 ),
               );
@@ -800,7 +785,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
               style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 10,
-                color: Color(0xFF8899AA),
+                color: AppColors.textMuted,
               ),
             ),
           ),
@@ -814,11 +799,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Color(0xFF141A22),
+          backgroundColor: AppColors.surface,
           content: Text(
             'Enter a valid amount',
             style:
-                TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
+                TextStyle(fontFamily: 'monospace', color: AppColors.danger),
           ),
         ),
       );
@@ -843,11 +828,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            backgroundColor: Color(0xFF141A22),
+            backgroundColor: AppColors.surface,
             content: Text(
               'Bill updated!',
               style:
-                  TextStyle(fontFamily: 'monospace', color: Color(0xFF00E5CC)),
+                  TextStyle(fontFamily: 'monospace', color: AppColors.accent),
             ),
           ),
         );
@@ -855,11 +840,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            backgroundColor: Color(0xFF141A22),
+            backgroundColor: AppColors.surface,
             content: Text(
               'Error updating bill',
               style:
-                  TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
+                  TextStyle(fontFamily: 'monospace', color: AppColors.danger),
             ),
           ),
         );
@@ -871,7 +856,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141A22),
+        backgroundColor: AppColors.surface,
         shape:
             const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: const Text(
@@ -879,12 +864,12 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
           style: TextStyle(
               fontFamily: 'monospace',
               letterSpacing: 1,
-              color: Color(0xFFE0E0E0)),
+              color: AppColors.textPrimary),
         ),
         content: Text(
           '${widget.bill.description} — \$${widget.bill.amount.toStringAsFixed(2)}',
           style: const TextStyle(
-              fontFamily: 'monospace', color: Color(0xFF8899AA)),
+              fontFamily: 'monospace', color: AppColors.textMuted),
         ),
         actions: [
           TextButton(
@@ -896,7 +881,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('DELETE',
                 style: TextStyle(
-                    fontFamily: 'monospace', color: Color(0xFFFF4C5E))),
+                    fontFamily: 'monospace', color: AppColors.danger)),
           ),
         ],
       ),
@@ -907,11 +892,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            backgroundColor: Color(0xFF141A22),
+            backgroundColor: AppColors.surface,
             content: Text(
               'Bill deleted',
               style:
-                  TextStyle(fontFamily: 'monospace', color: Color(0xFFFF4C5E)),
+                  TextStyle(fontFamily: 'monospace', color: AppColors.danger),
             ),
           ),
         );

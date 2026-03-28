@@ -1,12 +1,18 @@
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/bill_service.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/email_verification_screen.dart';
 import 'services/auth_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'constants/theme_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,52 +29,53 @@ class SpreadTheFundApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthService>(create: (_) => AuthService()),
+        Provider<BillService>(create: (_) => BillService()),
+        Provider<AuthService>(create: (context) => AuthService(context.read<BillService>())),
       ],
       child: MaterialApp(
-        title: 'Spread the Fund',
+        title: 'Spread the Funds',
         theme: ThemeData(
           brightness: Brightness.dark,
-          scaffoldBackgroundColor: const Color(0xFF0A0E14),
-          primaryColor: const Color(0xFF00E5CC),
+          scaffoldBackgroundColor: AppColors.background,
+          primaryColor: AppColors.accent,
           colorScheme: const ColorScheme.dark(
-            primary: Color(0xFF00E5CC),
-            secondary: Color(0xFF00E5CC),
-            surface: Color(0xFF141A22),
-            onPrimary: Color(0xFF0A0E14),
-            onSurface: Color(0xFFE0E0E0),
+            primary: AppColors.accent,
+            secondary: AppColors.accent,
+            surface: AppColors.surface,
+            onPrimary: AppColors.background,
+            onSurface: AppColors.textPrimary,
           ),
           useMaterial3: true,
           appBarTheme: const AppBarTheme(
             centerTitle: false,
             elevation: 0,
             backgroundColor: Color(0xFF0F1419),
-            foregroundColor: Color(0xFFE0E0E0),
+            foregroundColor: AppColors.textPrimary,
             titleTextStyle: TextStyle(
               fontFamily: 'monospace',
               fontSize: 18,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
-              color: Color(0xFFE0E0E0),
+              color: AppColors.textPrimary,
             ),
           ),
           cardTheme: const CardThemeData(
-            color: Color(0xFF141A22),
+            color: AppColors.surface,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,
-              side: BorderSide(color: Color(0xFF1E2A35), width: 1),
+              side: BorderSide(color: AppColors.border, width: 1),
             ),
           ),
           floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            backgroundColor: Color(0xFF00E5CC),
-            foregroundColor: Color(0xFF0A0E14),
+            backgroundColor: AppColors.accent,
+            foregroundColor: AppColors.background,
           ),
-          iconTheme: const IconThemeData(color: Color(0xFF8899AA)),
-          dividerColor: const Color(0xFF1E2A35),
+          iconTheme: const IconThemeData(color: AppColors.textMuted),
+          dividerColor: AppColors.border,
           snackBarTheme: const SnackBarThemeData(
-            backgroundColor: Color(0xFF141A22),
-            contentTextStyle: TextStyle(color: Color(0xFFE0E0E0)),
+            backgroundColor: AppColors.surface,
+            contentTextStyle: TextStyle(color: AppColors.textPrimary),
           ),
         ),
         home: Builder(
@@ -80,12 +87,16 @@ class SpreadTheFundApp extends StatelessWidget {
                 if (snapshot.connectionState == ConnectionState.active) {
                   final user = snapshot.data;
                   if (user != null) {
+                    // If email/password user hasn't verified email, show verification screen
+                    final isEmailProvider = user.providerData.any(
+                      (info) => info.providerId == 'password',
+                    );
+                    if (isEmailProvider && !user.emailVerified) {
+                      return const EmailVerificationScreen();
+                    }
                     // Listen to user doc for onboarding status
-                    return StreamBuilder<DocumentSnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(user.uid)
-                          .snapshots(),
+                    return StreamBuilder(
+                      stream: authService.userDocStream,
                       builder: (context, userSnap) {
                         if (!userSnap.hasData) {
                           return const Scaffold(

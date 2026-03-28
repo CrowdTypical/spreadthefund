@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00E5CC"/>
+      <stop offset="100%" style="stop-color:#42A5F5"/>
+    </linearGradient>
+    <clipPath id="leftRip">
+      <polygon points="
+        0,0 266,0 260,18 268,36 256,54 270,72 258,90 264,108 254,126
+        268,144 256,162 272,180 258,198 266,216 256,234 270,252 258,270
+        266,288 254,306 268,324 260,342 270,360 256,378 264,396 258,414
+        268,432 256,450 262,468 256,486 260,512 0,512"/>
+    </clipPath>
+    <clipPath id="rightRip">
+      <polygon points="
+        266,0 512,0 512,512 260,512 256,486 262,468 256,450 268,432
+        258,414 264,396 256,378 270,360 260,342 268,324 254,306 266,288
+        258,270 270,252 256,234 266,216 258,198 272,180 256,162 268,144
+        254,126 264,108 258,90 270,72 256,54 268,36 260,18 266,0"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="#0A0E14"/>
+
+  <!-- LEFT HALF — receipt with $ watermark, slightly pulled left -->
+  <g clip-path="url(#leftRip)" transform="translate(-14, 4) rotate(-1.5, 256, 256)">
+    <!-- Receipt body -->
+    <rect x="96" y="30" width="320" height="452" fill="#141A22" stroke="#1E2A35" stroke-width="1.5"/>
+
+    <!-- Zigzag top -->
+    <polygon points="96,30 108,46 120,30 132,46 144,30 156,46 168,30 180,46 192,30 204,46
+      216,30 228,46 240,30 252,46 264,30 276,46 288,30 300,46 312,30 324,46
+      336,30 348,46 360,30 372,46 384,30 396,46 416,30 416,46 96,46" fill="#141A22"/>
+    <!-- Zigzag bottom -->
+    <polygon points="96,482 108,466 120,482 132,466 144,482 156,466 168,482 180,466 192,482 204,466
+      216,482 228,466 240,482 252,466 264,482 276,466 288,482 300,466 312,482 324,466
+      336,482 348,466 360,482 372,466 384,482 396,466 416,482 416,466 96,466" fill="#141A22"/>
+
+    <!-- Large $ watermark (behind text, faint) -->
+    <text x="230" y="320" font-family="monospace" font-size="260" font-weight="900"
+          fill="#1E2A35" opacity="0.5">$</text>
+
+    <!-- Receipt header -->
+    <rect x="130" y="66" width="160" height="5" fill="#00E5CC" opacity="0.8"/>
+    <rect x="130" y="84" width="100" height="3" fill="#556677"/>
+    <rect x="130" y="98" width="130" height="3" fill="#556677"/>
+    <rect x="130" y="118" width="200" height="1.5" fill="#1E2A35"/>
+
+    <!-- Line items -->
+    <rect x="130" y="136" width="90" height="3" fill="#8899AA"/>
+    <rect x="330" y="136" width="40" height="3" fill="#8899AA"/>
+    <rect x="130" y="156" width="110" height="3" fill="#8899AA"/>
+    <rect x="330" y="156" width="35" height="3" fill="#8899AA"/>
+    <rect x="130" y="176" width="80" height="3" fill="#8899AA"/>
+    <rect x="330" y="176" width="50" height="3" fill="#8899AA"/>
+    <rect x="130" y="196" width="100" height="3" fill="#8899AA"/>
+    <rect x="330" y="196" width="38" height="3" fill="#8899AA"/>
+
+    <!-- Dashed line -->
+    <line x1="130" y1="220" x2="380" y2="220" stroke="#1E2A35" stroke-width="1.5" stroke-dasharray="5,4"/>
+
+    <!-- Total -->
+    <rect x="130" y="240" width="50" height="4" fill="#00E5CC"/>
+    <rect x="310" y="240" width="60" height="4" fill="#00E5CC"/>
+
+    <!-- Glitch bar across the $ area -->
+    <rect x="80" y="290" width="360" height="6" fill="#FF4C5E" opacity="0.6"/>
+    <rect x="90" y="350" width="340" height="4" fill="#FF4C5E" opacity="0.4"/>
+
+    <!-- Footer -->
+    <rect x="170" y="410" width="160" height="3" fill="#455566"/>
+    <rect x="190" y="428" width="120" height="3" fill="#455566"/>
+  </g>
+
+  <!-- RIGHT HALF -->
+  <g clip-path="url(#rightRip)" transform="translate(14, -4) rotate(1.5, 256, 256)">
+    <rect x="96" y="30" width="320" height="452" fill="#141A22" stroke="#1E2A35" stroke-width="1.5"/>
+
+    <polygon points="96,30 108,46 120,30 132,46 144,30 156,46 168,30 180,46 192,30 204,46
+      216,30 228,46 240,30 252,46 264,30 276,46 288,30 300,46 312,30 324,46
+      336,30 348,46 360,30 372,46 384,30 396,46 416,30 416,46 96,46" fill="#141A22"/>
+    <polygon points="96,482 108,466 120,482 132,466 144,482 156,466 168,482 180,466 192,482 204,466
+      216,482 228,466 240,482 252,466 264,482 276,466 288,482 300,466 312,482 324,466
+      336,482 348,466 360,482 372,466 384,482 396,466 416,482 416,466 96,466" fill="#141A22"/>
+
+    <!-- Large $ watermark -->
+    <text x="230" y="320" font-family="monospace" font-size="260" font-weight="900"
+          fill="#1E2A35" opacity="0.5">$</text>
+
+    <!-- Receipt header -->
+    <rect x="130" y="66" width="160" height="5" fill="#00E5CC" opacity="0.8"/>
+    <rect x="130" y="84" width="100" height="3" fill="#556677"/>
+    <rect x="130" y="98" width="130" height="3" fill="#556677"/>
+    <rect x="130" y="118" width="200" height="1.5" fill="#1E2A35"/>
+
+    <rect x="130" y="136" width="90" height="3" fill="#8899AA"/>
+    <rect x="330" y="136" width="40" height="3" fill="#8899AA"/>
+    <rect x="130" y="156" width="110" height="3" fill="#8899AA"/>
+    <rect x="330" y="156" width="35" height="3" fill="#8899AA"/>
+    <rect x="130" y="176" width="80" height="3" fill="#8899AA"/>
+    <rect x="330" y="176" width="50" height="3" fill="#8899AA"/>
+    <rect x="130" y="196" width="100" height="3" fill="#8899AA"/>
+    <rect x="330" y="196" width="38" height="3" fill="#8899AA"/>
+
+    <line x1="130" y1="220" x2="380" y2="220" stroke="#1E2A35" stroke-width="1.5" stroke-dasharray="5,4"/>
+
+    <rect x="130" y="240" width="50" height="4" fill="#00E5CC"/>
+    <rect x="310" y="240" width="60" height="4" fill="#00E5CC"/>
+
+    <rect x="80" y="290" width="360" height="6" fill="#FF4C5E" opacity="0.6"/>
+    <rect x="90" y="350" width="340" height="4" fill="#FF4C5E" opacity="0.4"/>
+
+    <rect x="170" y="410" width="160" height="3" fill="#455566"/>
+    <rect x="190" y="428" width="120" height="3" fill="#455566"/>
+  </g>
+
+  <!-- Rip edge accents — small glitch fragments along the tear -->
+  <rect x="248" y="80" width="20" height="3" fill="#FF4C5E" opacity="0.6"/>
+  <rect x="255" y="160" width="14" height="2" fill="#00E5CC" opacity="0.5"/>
+  <rect x="244" y="240" width="28" height="3" fill="#FF4C5E" opacity="0.5"/>
+  <rect x="252" y="320" width="16" height="2" fill="#42A5F5" opacity="0.4"/>
+  <rect x="248" y="400" width="22" height="3" fill="#FF4C5E" opacity="0.6"/>
+
+  <!-- Pixel debris -->
+  <rect x="270" y="140" width="3" height="3" fill="#00E5CC" opacity="0.4"/>
+  <rect x="240" y="280" width="4" height="2" fill="#FF4C5E" opacity="0.4"/>
+  <rect x="262" y="360" width="3" height="4" fill="#42A5F5" opacity="0.3"/>
+</svg>

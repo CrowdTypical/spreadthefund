@@ -1,9 +1,13 @@
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Group {
   final String id;
   final String name;
-  final List<dynamic> members;
+  final List<String> members;
   final DateTime createdAt;
   final String createdBy;
   final String icon;
@@ -25,7 +29,7 @@ class Group {
     return Group(
       id: id,
       name: map['name'] as String? ?? 'Unnamed Group',
-      members: map['members'] as List,
+      members: List<String>.from(map['members'] ?? []),
       createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
@@ -34,5 +38,18 @@ class Group {
       color: map['color'] as String? ?? '00E5CC',
       customImage: map['customImage'] as String?,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    final map = <String, dynamic>{
+      'name': name,
+      'members': members,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'createdBy': createdBy,
+      'icon': icon,
+      'color': color,
+    };
+    if (customImage != null) map['customImage'] = customImage;
+    return map;
   }
 }

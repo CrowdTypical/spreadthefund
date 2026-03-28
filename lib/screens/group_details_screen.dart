@@ -1,10 +1,15 @@
-import 'dart:convert';
+// Copyright (C) 2026 Jason Green. All rights reserved.
+// Licensed under the PolyForm Shield License 1.0.0
+// https://polyformproject.org/licenses/shield/1.0.0/
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 import '../services/bill_service.dart';
+import '../constants/theme_constants.dart';
 import '../models/group.dart';
+import '../widgets/image_crop_dialog.dart';
 
 class GroupDetailsScreen extends StatefulWidget {
   final String groupId;
@@ -16,7 +21,7 @@ class GroupDetailsScreen extends StatefulWidget {
 }
 
 class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
-  final BillService _billService = BillService();
+  late final BillService _billService;
   List<Map<String, String>> _members = [];
   Group? _group;
   bool _loading = true;
@@ -25,11 +30,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _billService = context.read<BillService>();
     _loadData();
   }
 
   Future<void> _loadData() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = context.read<AuthService>().currentUser;
     if (user == null) return;
 
     final groups = await _billService.getUserGroupsStream(user.email!.toLowerCase()).first;
@@ -50,36 +56,37 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141A22),
+        backgroundColor: AppColors.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: const Text(
           'RENAME GROUP',
           style: TextStyle(
             fontFamily: 'monospace',
             letterSpacing: 2,
-            color: Color(0xFFE0E0E0),
+            color: AppColors.textPrimary,
           ),
         ),
         content: TextField(
           controller: controller,
           autofocus: true,
+          maxLength: 50,
           style: const TextStyle(
             fontFamily: 'monospace',
-            color: Color(0xFFE0E0E0),
+            color: AppColors.textPrimary,
           ),
           decoration: const InputDecoration(
             hintText: 'New group name',
             hintStyle: TextStyle(
               fontFamily: 'monospace',
-              color: Color(0xFF556677),
+              color: AppColors.textDim,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: Color(0xFF1E2A35)),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: Color(0xFF00E5CC)),
+              borderSide: BorderSide(color: AppColors.accent),
             ),
           ),
         ),
@@ -88,7 +95,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text(
               'CANCEL',
-              style: TextStyle(fontFamily: 'monospace', color: Color(0xFF8899AA)),
+              style: TextStyle(fontFamily: 'monospace', color: AppColors.textMuted),
             ),
           ),
           TextButton(
@@ -104,7 +111,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF00E5CC),
+                color: AppColors.accent,
               ),
             ),
           ),
@@ -119,14 +126,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141A22),
+        backgroundColor: AppColors.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: const Text(
           'REMOVE MEMBER?',
           style: TextStyle(
             fontFamily: 'monospace',
             letterSpacing: 1,
-            color: Color(0xFFFF4C5E),
+            color: AppColors.danger,
           ),
         ),
         content: Text(
@@ -134,7 +141,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
           style: const TextStyle(
             fontFamily: 'monospace',
             fontSize: 13,
-            color: Color(0xFF8899AA),
+            color: AppColors.textMuted,
           ),
         ),
         actions: [
@@ -142,7 +149,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text(
               'CANCEL',
-              style: TextStyle(fontFamily: 'monospace', color: Color(0xFF8899AA)),
+              style: TextStyle(fontFamily: 'monospace', color: AppColors.textMuted),
             ),
           ),
           TextButton(
@@ -158,14 +165,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    backgroundColor: const Color(0xFF141A22),
+                    backgroundColor: AppColors.surface,
                     content: Text(
                       success ? 'Member removed' : 'Failed to remove member',
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: success
-                            ? const Color(0xFF00E5CC)
-                            : const Color(0xFFFF4C5E),
+                            ? AppColors.accent
+                            : AppColors.danger,
                       ),
                     ),
                   ),
@@ -177,7 +184,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFFF4C5E),
+                color: AppColors.danger,
               ),
             ),
           ),
@@ -186,170 +193,15 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
     );
   }
 
-  static const _groupIcons = <String, IconData>{
-    'group': Icons.group,
-    'person': Icons.person,
-    'home': Icons.home,
-    'favorite': Icons.favorite,
-    'star': Icons.star,
-    'rocket': Icons.rocket_launch,
-    'pet': Icons.pets,
-    'music': Icons.music_note,
-    'game': Icons.sports_esports,
-    'travel': Icons.flight,
-    'food': Icons.restaurant,
-    'coffee': Icons.coffee,
-    'fitness': Icons.fitness_center,
-    'school': Icons.school,
-    'work': Icons.work,
-    'beach': Icons.beach_access,
-    'fire': Icons.local_fire_department,
-    'diamond': Icons.diamond,
-    'bolt': Icons.bolt,
-    'palette': Icons.palette,
-    'camera': Icons.camera_alt,
-    'cake': Icons.cake,
-    'car': Icons.directions_car,
-    'bike': Icons.pedal_bike,
-  };
-
-  static const _groupColors = <String, Color>{
-    '00E5CC': Color(0xFF00E5CC),
-    'FF6B9D': Color(0xFFFF6B9D),
-    '7B68EE': Color(0xFF7B68EE),
-    'FFA726': Color(0xFFFFA726),
-    '42A5F5': Color(0xFF42A5F5),
-    'EF5350': Color(0xFFEF5350),
-    '66BB6A': Color(0xFF66BB6A),
-    'FFEE58': Color(0xFFFFEE58),
-    'AB47BC': Color(0xFFAB47BC),
-    'FF7043': Color(0xFFFF7043),
-    '26C6DA': Color(0xFF26C6DA),
-    'EC407A': Color(0xFFEC407A),
-  };
-
-  IconData _groupIcon(String key) => _groupIcons[key] ?? Icons.group;
-  Color _groupColor(String hex) => _groupColors[hex] ?? const Color(0xFF00E5CC);
-
-  Future<String?> _pickAndCropImage(Color accent) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 70,
-    );
-    if (picked == null) return null;
-
-    final bytes = await picked.readAsBytes();
-    final base64Str = base64Encode(bytes);
-
-    if (!mounted) return null;
-
-    String? result;
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        final transformController = TransformationController();
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0D1117),
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          title: Text(
-            'CROP IMAGE',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-              color: accent,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Pinch to zoom, drag to move',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 10,
-                  letterSpacing: 1,
-                  color: Color(0xFF8899AA),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  border: Border.all(color: accent, width: 2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: InteractiveViewer(
-                    transformationController: transformController,
-                    minScale: 1.0,
-                    maxScale: 5.0,
-                    child: Image.memory(
-                      Uint8List.fromList(bytes),
-                      fit: BoxFit.cover,
-                      width: 200,
-                      height: 200,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Preview shows final crop area',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 9,
-                  letterSpacing: 1,
-                  color: Color(0xFF556677),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                'CANCEL',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  letterSpacing: 1,
-                  color: Color(0xFF8899AA),
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                result = base64Str;
-                Navigator.pop(ctx);
-              },
-              child: Text(
-                'USE IMAGE',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  letterSpacing: 1,
-                  color: accent,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    return result;
-  }
+  IconData _groupIcon(String key) => groupIcons[key] ?? Icons.group;
+  Color _groupColor(String hex) => groupColors[hex] ?? AppColors.accent;
 
   void _showAppearanceDialog() {
     if (_group == null) return;
     var selectedIcon = _group!.icon;
     var selectedColor = _group!.color;
     String? pendingImage = _group!.customImage;
+    Uint8List? pendingImageBytes;
     var clearImage = false;
 
     showDialog(
@@ -358,14 +210,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
         builder: (ctx, setDialogState) {
           final accent = _groupColor(selectedColor);
           return AlertDialog(
-            backgroundColor: const Color(0xFF141A22),
+            backgroundColor: AppColors.surface,
             shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             title: const Text(
               'CHANGE APPEARANCE',
               style: TextStyle(
                 fontFamily: 'monospace',
                 letterSpacing: 2,
-                color: Color(0xFFE0E0E0),
+                color: AppColors.textPrimary,
               ),
             ),
             content: SingleChildScrollView(
@@ -379,7 +231,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                       fontFamily: 'monospace',
                       fontSize: 10,
                       letterSpacing: 2,
-                      color: Color(0xFF8899AA),
+                      color: AppColors.textMuted,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -395,16 +247,18 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: pendingImage != null && pendingImage!.isNotEmpty
+                          child: pendingImageBytes != null
                             ? Image.memory(
-                                Uint8List.fromList(base64Decode(pendingImage!)),
+                                pendingImageBytes!,
                                 fit: BoxFit.cover,
                                 width: 48,
                                 height: 48,
                                 errorBuilder: (_, __, ___) =>
                                     Icon(_groupIcon(selectedIcon), color: accent, size: 24),
                               )
-                            : Icon(_groupIcon(selectedIcon), color: accent, size: 24),
+                            : pendingImage != null && pendingImage!.isNotEmpty
+                              ? buildImagePreview(pendingImage!, selectedIcon, accent)
+                              : Icon(_groupIcon(selectedIcon), color: accent, size: 24),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -414,10 +268,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           children: [
                             GestureDetector(
                               onTap: () async {
-                                final result = await _pickAndCropImage(accent);
+                                final result = await pickAndCropImage(context, accent);
                                 if (result != null) {
                                   setDialogState(() {
-                                    pendingImage = result;
+                                    pendingImageBytes = result;
                                     clearImage = false;
                                   });
                                 }
@@ -428,7 +282,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                   border: Border.all(color: accent),
                                 ),
                                 child: Text(
-                                  pendingImage != null && pendingImage!.isNotEmpty
+                                  pendingImage != null && pendingImage!.isNotEmpty && !clearImage || pendingImageBytes != null
                                       ? 'CHANGE IMAGE'
                                       : 'UPLOAD IMAGE',
                                   style: TextStyle(
@@ -440,11 +294,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                 ),
                               ),
                             ),
-                            if (pendingImage != null && pendingImage!.isNotEmpty) ...[
+                            if ((pendingImage != null && pendingImage!.isNotEmpty && !clearImage) || pendingImageBytes != null) ...[
                               const SizedBox(height: 6),
                               GestureDetector(
                                 onTap: () => setDialogState(() {
                                   pendingImage = null;
+                                  pendingImageBytes = null;
                                   clearImage = true;
                                 }),
                                 child: const Text(
@@ -453,7 +308,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                     fontFamily: 'monospace',
                                     fontSize: 10,
                                     letterSpacing: 1,
-                                    color: Color(0xFFFF4C5E),
+                                    color: AppColors.danger,
                                   ),
                                 ),
                               ),
@@ -470,7 +325,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                       fontFamily: 'monospace',
                       fontSize: 10,
                       letterSpacing: 2,
-                      color: Color(0xFF8899AA),
+                      color: AppColors.textMuted,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -479,14 +334,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 9,
-                      color: Color(0xFF556677),
+                      color: AppColors.textDim,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: _groupIcons.entries.map((e) {
+                    children: groupIcons.entries.map((e) {
                       final isSel = e.key == selectedIcon;
                       return GestureDetector(
                         onTap: () => setDialogState(() => selectedIcon = e.key),
@@ -496,10 +351,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           decoration: BoxDecoration(
                             color: isSel ? accent.withValues(alpha: 0.15) : Colors.transparent,
                             border: Border.all(
-                              color: isSel ? accent : const Color(0xFF1E2A35),
+                              color: isSel ? accent : AppColors.border,
                             ),
                           ),
-                          child: Icon(e.value, color: isSel ? accent : const Color(0xFF556677), size: 18),
+                          child: Icon(e.value, color: isSel ? accent : AppColors.textDim, size: 18),
                         ),
                       );
                     }).toList(),
@@ -511,14 +366,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                       fontFamily: 'monospace',
                       fontSize: 10,
                       letterSpacing: 2,
-                      color: Color(0xFF8899AA),
+                      color: AppColors.textMuted,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: _groupColors.entries.map((e) {
+                    children: groupColors.entries.map((e) {
                       final isSel = e.key == selectedColor;
                       return GestureDetector(
                         onTap: () => setDialogState(() => selectedColor = e.key),
@@ -549,18 +404,22 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                   'CANCEL',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: Color(0xFF8899AA),
+                    color: AppColors.textMuted,
                   ),
                 ),
               ),
               TextButton(
                 onPressed: () async {
                   Navigator.pop(ctx);
+                  String? imageUrl;
+                  if (pendingImageBytes != null) {
+                    imageUrl = await _billService.uploadGroupImage(widget.groupId, context.read<AuthService>().currentUser!.uid, pendingImageBytes!);
+                  }
                   final success = await _billService.updateGroupAppearance(
                     widget.groupId,
                     icon: selectedIcon,
                     color: selectedColor,
-                    customImage: (pendingImage != null && !clearImage) ? pendingImage : null,
+                    customImage: pendingImageBytes != null ? imageUrl : (pendingImage != null && !clearImage) ? pendingImage : null,
                     clearImage: clearImage,
                   );
                   if (mounted && success) {
@@ -569,12 +428,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        backgroundColor: const Color(0xFF141A22),
+                        backgroundColor: AppColors.surface,
                         content: Text(
                           success ? 'Appearance updated' : 'Error updating appearance',
                           style: TextStyle(
                             fontFamily: 'monospace',
-                            color: success ? const Color(0xFF00E5CC) : const Color(0xFFFF4C5E),
+                            color: success ? AppColors.accent : AppColors.danger,
                           ),
                         ),
                       ),
@@ -585,7 +444,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                   'SAVE',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: Color(0xFF00E5CC),
+                    color: AppColors.accent,
                   ),
                 ),
               ),
@@ -600,14 +459,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141A22),
+        backgroundColor: AppColors.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: const Text(
           'DELETE GROUP?',
           style: TextStyle(
             fontFamily: 'monospace',
             letterSpacing: 1,
-            color: Color(0xFFFF4C5E),
+            color: AppColors.danger,
           ),
         ),
         content: Text(
@@ -615,7 +474,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
           style: const TextStyle(
             fontFamily: 'monospace',
             fontSize: 13,
-            color: Color(0xFF8899AA),
+            color: AppColors.textMuted,
           ),
         ),
         actions: [
@@ -623,7 +482,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text(
               'CANCEL',
-              style: TextStyle(fontFamily: 'monospace', color: Color(0xFF8899AA)),
+              style: TextStyle(fontFamily: 'monospace', color: AppColors.textMuted),
             ),
           ),
           TextButton(
@@ -639,7 +498,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFFF4C5E),
+                color: AppColors.danger,
               ),
             ),
           ),
@@ -651,12 +510,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E14),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0E14),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF00E5CC)),
+          icon: const Icon(Icons.arrow_back, color: AppColors.accent),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -666,13 +525,13 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
             fontSize: 16,
             fontWeight: FontWeight.bold,
             letterSpacing: 2,
-            color: Color(0xFFE0E0E0),
+            color: AppColors.textPrimary,
           ),
         ),
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF00E5CC)),
+              child: CircularProgressIndicator(color: AppColors.accent),
             )
           : _group == null
               ? const Center(
@@ -680,19 +539,19 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                     'GROUP NOT FOUND',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      color: Color(0xFF8899AA),
+                      color: AppColors.textMuted,
                     ),
                   ),
                 )
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // ── GROUP NAME ──
+                    // â”€â”€ GROUP NAME â”€â”€
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141A22),
-                        border: Border.all(color: const Color(0xFF1E2A35)),
+                        color: AppColors.surface,
+                        border: Border.all(color: AppColors.border),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -703,7 +562,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               fontFamily: 'monospace',
                               fontSize: 10,
                               letterSpacing: 2,
-                              color: Color(0xFF556677),
+                              color: AppColors.textDim,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -714,7 +573,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1,
-                              color: Color(0xFFE0E0E0),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ],
@@ -722,12 +581,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // ── MEMBERS ──
+                    // â”€â”€ MEMBERS â”€â”€
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141A22),
-                        border: Border.all(color: const Color(0xFF1E2A35)),
+                        color: AppColors.surface,
+                        border: Border.all(color: AppColors.border),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,19 +597,19 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               fontFamily: 'monospace',
                               fontSize: 10,
                               letterSpacing: 2,
-                              color: Color(0xFF556677),
+                              color: AppColors.textDim,
                             ),
                           ),
                           const SizedBox(height: 10),
                           ..._members.map((m) {
-                            final isOwner = m['uid'] == _group!.createdBy;
-                            final currentUser = FirebaseAuth.instance.currentUser?.email?.toLowerCase();
+                            final isOwner = m['email'] == _group!.createdBy;
+                            final currentUser = context.read<AuthService>().currentUser?.email?.toLowerCase();
                             final isSelf = m['email']?.toLowerCase() == currentUser;
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.person, color: Color(0xFF00E5CC), size: 18),
+                                  const Icon(Icons.person, color: AppColors.accent, size: 18),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
@@ -761,7 +620,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                           style: const TextStyle(
                                             fontFamily: 'monospace',
                                             fontSize: 13,
-                                            color: Color(0xFFE0E0E0),
+                                            color: AppColors.textPrimary,
                                           ),
                                         ),
                                         if (m['email']!.isNotEmpty &&
@@ -771,7 +630,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                             style: const TextStyle(
                                               fontFamily: 'monospace',
                                               fontSize: 10,
-                                              color: Color(0xFF556677),
+                                              color: AppColors.textDim,
                                             ),
                                           ),
                                       ],
@@ -783,7 +642,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                           horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
                                         border: Border.all(
-                                            color: const Color(0xFF00E5CC)
+                                            color: AppColors.accent
                                                 .withValues(alpha: 0.3)),
                                       ),
                                       child: const Text(
@@ -792,14 +651,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                           fontFamily: 'monospace',
                                           fontSize: 9,
                                           letterSpacing: 1,
-                                          color: Color(0xFF00E5CC),
+                                          color: AppColors.accent,
                                         ),
                                       ),
                                     ),
                                   if (!isOwner && !isSelf)
                                     IconButton(
                                       icon: const Icon(Icons.person_remove,
-                                          color: Color(0xFFFF4C5E), size: 18),
+                                          color: AppColors.danger, size: 18),
                                       tooltip: 'Remove member',
                                       onPressed: () => _showRemoveMemberDialog(m),
                                     ),
@@ -812,19 +671,19 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // ── DEBUG / METADATA ──
+                    // â”€â”€ DEBUG / METADATA â”€â”€
                     GestureDetector(
                       onTap: () => setState(() => _showMeta = !_showMeta),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141A22),
-                          border: Border.all(color: const Color(0xFF1E2A35)),
+                          color: AppColors.surface,
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Row(
                           children: [
                             const Icon(Icons.bug_report,
-                                color: Color(0xFF556677), size: 16),
+                                color: AppColors.textDim, size: 16),
                             const SizedBox(width: 8),
                             const Text(
                               'DEBUG / METADATA',
@@ -832,7 +691,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                 fontFamily: 'monospace',
                                 fontSize: 11,
                                 letterSpacing: 1,
-                                color: Color(0xFF556677),
+                                color: AppColors.textDim,
                               ),
                             ),
                             const Spacer(),
@@ -840,7 +699,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               _showMeta
                                   ? Icons.keyboard_arrow_up
                                   : Icons.keyboard_arrow_down,
-                              color: const Color(0xFF556677),
+                              color: AppColors.textDim,
                             ),
                           ],
                         ),
@@ -851,7 +710,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: const Color(0xFF0D1117),
-                          border: Border.all(color: const Color(0xFF1E2A35)),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -864,7 +723,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                     fontFamily: 'monospace',
                                     fontSize: 10,
                                     letterSpacing: 1,
-                                    color: Color(0xFF556677),
+                                    color: AppColors.textDim,
                                   ),
                                 ),
                                 Expanded(
@@ -873,12 +732,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                     style: const TextStyle(
                                       fontFamily: 'monospace',
                                       fontSize: 11,
-                                      color: Color(0xFF00E5CC),
+                                      color: AppColors.accent,
                                     ),
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.copy, color: Color(0xFF8899AA), size: 14),
+                                  icon: const Icon(Icons.copy, color: AppColors.textMuted, size: 14),
                                   tooltip: 'Copy ID',
                                   constraints: const BoxConstraints(),
                                   padding: EdgeInsets.zero,
@@ -886,12 +745,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                     Clipboard.setData(ClipboardData(text: widget.groupId));
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        backgroundColor: Color(0xFF141A22),
+                                        backgroundColor: AppColors.surface,
                                         content: Text(
                                           'Group ID copied',
                                           style: TextStyle(
                                             fontFamily: 'monospace',
-                                            color: Color(0xFF00E5CC),
+                                            color: AppColors.accent,
                                           ),
                                         ),
                                       ),
@@ -906,7 +765,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               style: const TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 10,
-                                color: Color(0xFF556677),
+                                color: AppColors.textDim,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -915,7 +774,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               style: const TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 10,
-                                color: Color(0xFF556677),
+                                color: AppColors.textDim,
                               ),
                             ),
                           ],
@@ -924,7 +783,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
 
                     const SizedBox(height: 24),
 
-                    // ── ACTIONS ──
+                    // â”€â”€ ACTIONS â”€â”€
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
@@ -939,8 +798,8 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF00E5CC),
-                          side: const BorderSide(color: Color(0xFF00E5CC)),
+                          foregroundColor: AppColors.accent,
+                          side: const BorderSide(color: AppColors.accent),
                           shape: const RoundedRectangleBorder(
                               borderRadius: BorderRadius.zero),
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -962,8 +821,8 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF00E5CC),
-                          side: const BorderSide(color: Color(0xFF00E5CC)),
+                          foregroundColor: AppColors.accent,
+                          side: const BorderSide(color: AppColors.accent),
                           shape: const RoundedRectangleBorder(
                               borderRadius: BorderRadius.zero),
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -985,8 +844,8 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFFF4C5E),
-                          side: const BorderSide(color: Color(0xFFFF4C5E)),
+                          foregroundColor: AppColors.danger,
+                          side: const BorderSide(color: AppColors.danger),
                           shape: const RoundedRectangleBorder(
                               borderRadius: BorderRadius.zero),
                           padding: const EdgeInsets.symmetric(vertical: 14),

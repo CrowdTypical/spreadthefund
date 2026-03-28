@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spread the Funds – Feature Graphic</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #0A0E14;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* Subtle grid / scan-line texture */
+  body::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,229,204,0.015) 3px,
+        rgba(0,229,204,0.015) 4px
+      );
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .container {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+    z-index: 2;
+  }
+
+  /* Glitch dollar icon */
+  .icon {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    flex-shrink: 0;
+  }
+
+  .icon .dollar {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 200px;
+    font-weight: 900;
+    line-height: 1;
+    user-select: none;
+  }
+
+  .dollar.red {
+    color: rgba(255, 76, 94, 0.67);
+    transform: translateX(12px);
+  }
+
+  .dollar.blue {
+    color: rgba(66, 165, 245, 0.33);
+    transform: translateX(-12px);
+  }
+
+  .dollar.main {
+    color: #00E5CC;
+  }
+
+  /* Text block */
+  .text-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .app-name {
+    font-size: 64px;
+    font-weight: 800;
+    color: #E0E0E0;
+    letter-spacing: -1px;
+    line-height: 1.1;
+  }
+
+  .app-name .highlight {
+    color: #00E5CC;
+  }
+
+  .tagline {
+    font-size: 22px;
+    color: #8899AA;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+  }
+
+  /* Decorative glitch bars */
+  .glitch-bar {
+    position: absolute;
+    height: 3px;
+    background: #FF4C5E;
+    opacity: 0.35;
+    z-index: 1;
+  }
+  .glitch-bar:nth-child(1) { width: 180px; top: 120px; left: 40px; }
+  .glitch-bar:nth-child(2) { width: 120px; top: 380px; right: 60px; left: auto; }
+  .glitch-bar:nth-child(3) { width: 90px;  top: 200px; right: 100px; left: auto; background: #42A5F5; opacity: 0.2; }
+  .glitch-bar:nth-child(4) { width: 60px;  top: 330px; left: 80px; background: #42A5F5; opacity: 0.2; }
+  .glitch-bar:nth-child(5) { width: 140px; bottom: 80px; left: 200px; }
+  .glitch-bar:nth-child(6) { width: 70px;  top: 60px;  right: 200px; left: auto; background: #00E5CC; opacity: 0.15; }
+</style>
+</head>
+<body>
+
+  <!-- Decorative glitch bars -->
+  <div class="glitch-bar"></div>
+  <div class="glitch-bar"></div>
+  <div class="glitch-bar"></div>
+  <div class="glitch-bar"></div>
+  <div class="glitch-bar"></div>
+  <div class="glitch-bar"></div>
+
+  <div class="container">
+    <!-- Glitch $ icon -->
+    <div class="icon">
+      <div class="dollar red">$</div>
+      <div class="dollar blue">$</div>
+      <div class="dollar main">$</div>
+    </div>
+
+    <!-- App name & tagline -->
+    <div class="text-block">
+      <div class="app-name">Spread <span class="highlight">the</span> Funds</div>
+      <div class="tagline">Split bills in real time with your group</div>
+    </div>
+  </div>
+
+</body>
+</html>

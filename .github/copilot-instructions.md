@@ -1,6 +1,6 @@
 <!-- Copilot-specific instructions for developing the Bill Splitter app -->
 
-This is "Spread the Fund" — a Flutter bill-splitting app with Firebase real-time database and Google Sign-In authentication.
+This is "Spread the Funds" — a Flutter bill-splitting app with Firebase real-time database and Google Sign-In authentication.
 
 ## Getting Started
 

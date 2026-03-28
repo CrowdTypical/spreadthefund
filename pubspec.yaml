@@ -22,6 +22,7 @@ dependencies:
   image_picker: ^1.2.1
   url_launcher: ^6.2.0
   shared_preferences: ^2.2.0
+  flutter_svg: ^2.0.10+1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -31,9 +32,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "icon_options/final_icon_preview.png"
+  image_path: "assets/glitch_dollar_icon.png"
   adaptive_icon_background: "#0A0E14"
-  adaptive_icon_foreground: "spreadthefunds.png"
+  adaptive_icon_foreground: "assets/glitch_dollar_icon_foreground.png"
 
 flutter:
   uses-material-design: true
