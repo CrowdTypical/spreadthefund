@@ -197,8 +197,15 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return Scaffold(
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.5,
       appBar: AppBar(
         centerTitle: true,
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu, size: 30),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
         title: const GlitchDollarIcon(size: 42),
       ),
       drawer: GroupDrawer(
@@ -281,13 +288,15 @@ class _HomeScreenState extends State<HomeScreen>
       animation: _fabMorph,
       builder: (_, child) {
         final t = _fabMorph.value;
-        final screenWidth = MediaQuery.of(context).size.width;
+        final mq = MediaQuery.of(context);
+        final screenWidth = mq.size.width;
+        final navBarPad = mq.viewPadding.bottom;
 
         // Morph dimensions
         final width = lerpDouble(64, screenWidth, t)!;
-        final height = lerpDouble(64, 52, t)!;
+        final height = lerpDouble(64, 60 + navBarPad, t)!;
         final right = lerpDouble(32, 0, t)!;
-        final bottom = lerpDouble(48, 8, t)!;
+        final bottom = lerpDouble(48 + navBarPad, 0, t)!;
         final radius = lerpDouble(16, 0, t)!;
 
         // Color morph: accent → danger
@@ -352,7 +361,9 @@ class _HomeScreenState extends State<HomeScreen>
                           );
                         }
                       },
-                child: Center(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: navBarPad * t),
+                  child: Center(
                   child: t < 0.5
                       ? Opacity(
                           opacity: 1.0 - (t * 2).clamp(0.0, 1.0),
@@ -384,6 +395,7 @@ class _HomeScreenState extends State<HomeScreen>
                             ],
                           ),
                         ),
+                ),
                 ),
               ),
             ),

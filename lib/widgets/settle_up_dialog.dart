@@ -10,6 +10,7 @@ import '../services/bill_service.dart';
 import '../constants/theme_constants.dart';
 
 const _paymentMethods = ['PayPal', 'Venmo', 'Direct Deposit', 'Cash', 'Zelle', 'Other'];
+const _forgiveReasons = ['They Paid Me Back', 'Gift', 'Splitting Evenly', 'Other'];
 
 Future<String> _loadPreferredPaymentMethod(String? uid) async {
   if (uid == null) return _paymentMethods.first;
@@ -57,14 +58,18 @@ void showSettleUpDialog(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setDialogState) {
-        // Load preferred method once
+        // Load preferred method once (skip for forgive flow)
         if (loadingMethod) {
           loadingMethod = false;
-          _loadPreferredPaymentMethod(user.uid).then((method) {
-            if (ctx.mounted) {
-              setDialogState(() => selectedMethod = method);
-            }
-          });
+          if (!youOwe) {
+            selectedMethod = _forgiveReasons.first;
+          } else {
+            _loadPreferredPaymentMethod(user.uid).then((method) {
+              if (ctx.mounted) {
+                setDialogState(() => selectedMethod = method);
+              }
+            });
+          }
         }
         // Load group members once
         if (loadingMembers) {
@@ -109,12 +114,19 @@ void showSettleUpDialog(
           }
         }
 
+        final isForgiving = !youOwe;
+        final dialogTitle = isForgiving ? 'FORGIVE DEBT' : 'SETTLE UP';
+        final amountLabel = isForgiving ? 'AMOUNT TO FORGIVE' : 'AMOUNT';
+        final payerLabel = isForgiving ? 'WHO\'S FORGIVING' : 'WHO\'S PAYING';
+        final methodLabel = isForgiving ? 'REASON' : 'METHOD OF PAYMENT';
+        final confirmLabel = isForgiving ? 'FORGIVE' : 'SETTLE';
+
         return AlertDialog(
           backgroundColor: AppColors.surface,
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          title: const Text(
-            'SETTLE UP',
-            style: TextStyle(
+          title: Text(
+            dialogTitle,
+            style: const TextStyle(
               fontFamily: 'monospace',
               letterSpacing: 2,
               color: AppColors.textPrimary,
@@ -126,9 +138,9 @@ void showSettleUpDialog(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // â”€â”€ AMOUNT â”€â”€
-                const Text(
-                  'AMOUNT',
-                  style: TextStyle(
+                Text(
+                  amountLabel,
+                  style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11,
                     letterSpacing: 2,
@@ -168,9 +180,9 @@ void showSettleUpDialog(
                 const SizedBox(height: 16),
 
                 // â”€â”€ WHO'S PAYING â”€â”€
-                const Text(
-                  'WHO\'S PAYING',
-                  style: TextStyle(
+                Text(
+                  payerLabel,
+                  style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11,
                     letterSpacing: 2,
@@ -205,9 +217,9 @@ void showSettleUpDialog(
                 const SizedBox(height: 16),
 
                 // â”€â”€ PAYMENT METHOD â”€â”€
-                const Text(
-                  'METHOD OF PAYMENT',
-                  style: TextStyle(
+                Text(
+                  methodLabel,
+                  style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11,
                     letterSpacing: 2,
@@ -232,7 +244,7 @@ void showSettleUpDialog(
                         fontSize: 14,
                         color: AppColors.accent,
                       ),
-                      items: _paymentMethods.map((m) => DropdownMenuItem(
+                      items: (isForgiving ? _forgiveReasons : _paymentMethods).map((m) => DropdownMenuItem(
                         value: m,
                         child: Text(m, style: const TextStyle(fontFamily: 'monospace', color: AppColors.textPrimary)),
                       )).toList(),
@@ -261,8 +273,12 @@ void showSettleUpDialog(
 
                 await billService.settleUp(
                   groupId: groupId,
-                  from: selectedPayer,
-                  to: selectedPayer == currentEmail ? partnerEmail : currentEmail,
+                  from: isForgiving
+                      ? (selectedPayer == currentEmail ? partnerEmail : selectedPayer)
+                      : selectedPayer,
+                  to: isForgiving
+                      ? currentEmail
+                      : (selectedPayer == currentEmail ? partnerEmail : currentEmail),
                   amount: amount,
                   paymentMethod: selectedMethod,
                 );
@@ -277,7 +293,9 @@ void showSettleUpDialog(
                     SnackBar(
                       backgroundColor: AppColors.surface,
                       content: Text(
-                        'Settled \$${amount.toStringAsFixed(2)} via $selectedMethod',
+                        isForgiving
+                            ? 'Forgave \$${amount.toStringAsFixed(2)}'
+                            : 'Settled \$${amount.toStringAsFixed(2)} via $selectedMethod',
                         style: const TextStyle(
                           fontFamily: 'monospace',
                           color: AppColors.accent,
@@ -287,9 +305,9 @@ void showSettleUpDialog(
                   );
                 }
               },
-              child: const Text(
-                'SETTLE',
-                style: TextStyle(
+              child: Text(
+                confirmLabel,
+                style: const TextStyle(
                   fontFamily: 'monospace',
                   fontWeight: FontWeight.bold,
                   color: AppColors.accent,

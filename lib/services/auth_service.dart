@@ -23,11 +23,12 @@ class AuthService {
   User? get currentUser => _firebaseAuth.currentUser;
 
   Future<String?> signInWithGoogle() async {
-    try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null;
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null; // User cancelled
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    try {
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -61,8 +62,14 @@ class AuthService {
 
       return email;
     } catch (e) {
-      if (kDebugMode) log('Error signing in with Google: $e');
-      return null;
+      // The google_sign_in_android Pigeon layer can throw a type cast error
+      // even though Firebase auth actually succeeded. Check if we're signed in
+      // before treating this as a failure.
+      if (_firebaseAuth.currentUser != null) {
+        if (kDebugMode) log('Google sign-in post-auth error (ignored): $e');
+        return _firebaseAuth.currentUser!.email?.toLowerCase();
+      }
+      rethrow;
     }
   }
 

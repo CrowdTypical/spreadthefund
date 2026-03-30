@@ -22,135 +22,88 @@ class BalanceCard extends StatelessWidget {
     final difference = youOwe - theyOwe;
     final bool hasBalance = difference.abs() >= 0.01;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'BALANCE',
+    if (!hasBalance) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.4)),
+        ),
+        child: const Center(
+          child: Text(
+            'SETTLED UP',
             style: TextStyle(
               fontFamily: 'monospace',
-              fontSize: 11,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
-              letterSpacing: 3,
-              color: AppColors.textMuted,
+              letterSpacing: 2,
+              color: AppColors.accent,
             ),
           ),
-          const SizedBox(height: 12),
-          if (!hasBalance)
-            const Text(
-              'SETTLED UP',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.accent,
-              ),
-            )
-          else if (difference > 0)
-            Column(
-              children: [
-                const Text(
-                  'YOU OWE',
+        ),
+      );
+    }
+
+    final bool youOweMore = difference > 0;
+    final label = youOweMore ? 'You Owe' : 'They Owe You';
+    final amount = '\$${difference.abs().toStringAsFixed(2)}';
+    final accentColor = youOweMore ? AppColors.danger : AppColors.accent;
+    final buttonLabel = youOweMore ? 'SETTLE' : 'FORGIVE';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11,
-                    letterSpacing: 2,
-                    color: AppColors.textMuted,
+                    letterSpacing: 1.5,
+                    color: accentColor.withValues(alpha: 0.7),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '\$${difference.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.danger,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: onSettle,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.accent),
-                        ),
-                        child: const Text(
-                          'SETTLE',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                            color: AppColors.accent,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            )
-          else
-            Column(
-              children: [
-                const Text(
-                  'THEY OWE YOU',
+                const SizedBox(height: 2),
+                Text(
+                  amount,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 11,
-                    letterSpacing: 2,
-                    color: AppColors.textMuted,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '\$${difference.abs().toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.accent,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: onSettle,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.accent),
-                        ),
-                        child: const Text(
-                          'SETTLE',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                            color: AppColors.accent,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
+          const Spacer(),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onSettle,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A3D33),
+                border: Border.all(color: const Color(0xFF00E5CC), width: 1.5),
+              ),
+              child: Text(
+                buttonLabel,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                  color: Color(0xFF00E5CC),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

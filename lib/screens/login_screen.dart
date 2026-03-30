@@ -566,7 +566,7 @@ class _LoginScreenState extends State<LoginScreen> {
         GestureDetector(
           onTap: () => setState(() => _showForgotPassword = false),
           child: const Text(
-            'â† BACK TO SIGN IN',
+            '\u2190 BACK TO SIGN IN',
             style: TextStyle(
               fontFamily: 'monospace',
               fontSize: 11,
@@ -584,18 +584,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final authService = context.read<AuthService>();
-      final uid = await authService.signInWithGoogle();
+      final result = await authService.signInWithGoogle();
 
-      if (uid == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign-in cancelled')),
-        );
+      // Only show "cancelled" if the user explicitly dismissed the Google picker
+      // and Firebase auth didn't already sign them in via the stream.
+      if (result == null && mounted && authService.currentUser == null) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(content: Text('Sign-in cancelled')),
+          );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}')),
+          );
       }
     } finally {
       if (mounted) {

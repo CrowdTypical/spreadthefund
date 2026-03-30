@@ -307,11 +307,11 @@ void _showDeleteDataDialog(
               ),
               const SizedBox(height: 12),
               const Text(
-                'â€¢ Your account & profile\n'
-                'â€¢ All groups where you are the only member\n'
-                'â€¢ Your membership in shared groups\n'
-                'â€¢ All invites you sent or received\n'
-                'â€¢ All feedback you submitted',
+                '\u2022 Your account & profile\n'
+                '\u2022 All groups where you are the only member\n'
+                '\u2022 Your membership in shared groups\n'
+                '\u2022 All invites you sent or received\n'
+                '\u2022 All feedback you submitted',
                 style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 12,

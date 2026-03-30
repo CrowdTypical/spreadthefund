@@ -67,23 +67,15 @@ exports.sendInviteEmail = onCall(
           <p><strong>${safeInviterName}</strong> invited you to join the group <strong>"${safeGroupName}"</strong>.</p>
           <p>Sign in with <strong>${safeToEmail}</strong> and you'll automatically be added to the group.</p>
           <div style="margin: 24px 0; text-align: center;">
-            <a href="https://github.com/CrowdTypical/spreadthefund/releases"
+            <a href="https://play.google.com/store/apps/details?id=biz.jasongreen.spreadthefund"
                style="display: inline-block; padding: 14px 28px; background: #00E5CC; color: #0A0E14;
                       font-family: monospace; font-size: 14px; font-weight: bold; letter-spacing: 2px;
                       text-decoration: none;">
-              DOWNLOAD THE APP
+              GET IT ON GOOGLE PLAY
             </a>
           </div>
           <p style="color: #8899AA; font-size: 12px;">
             <strong>Note:</strong> Spread the Fund is currently available on <strong>Android only</strong>.
-            You'll need to install the APK manually.
-          </p>
-          <p style="color: #8899AA; font-size: 12px;">
-            New to installing APKs? Follow this guide:
-            <a href="https://www.lifewire.com/install-apk-on-android-4177185"
-               style="color: #00E5CC; text-decoration: underline;">
-              How to Install Third-Party APKs on Android
-            </a>
           </p>
         </div>
       `,

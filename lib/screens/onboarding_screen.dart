@@ -47,7 +47,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        color: AppColors.background,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0D1520),
+              AppColors.background,
+            ],
+          ),
+        ),
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(32.0),
@@ -55,31 +64,36 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.accent, width: 1),
+                    shape: BoxShape.circle,
+                    color: AppColors.accent.withValues(alpha: 0.1),
+                    border: Border.all(
+                      color: AppColors.accent.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
                   ),
                   child: const Icon(
-                    Icons.person_outline,
+                    Icons.waving_hand_rounded,
                     size: 48,
                     color: AppColors.accent,
                   ),
                 ),
                 const SizedBox(height: 32),
                 const Text(
-                  'WELCOME',
+                  'WELCOME!',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 4,
-                    color: AppColors.textPrimary,
+                    color: AppColors.accent,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'What should we call you?',
+                  'Almost there — what should we call you?',
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 12,
@@ -98,21 +112,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     fontFamily: 'monospace',
                     color: AppColors.textPrimary,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'FIRST NAME',
-                    labelStyle: TextStyle(
+                    labelStyle: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 12,
                       letterSpacing: 1,
                       color: AppColors.textMuted,
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.zero,
-                      borderSide: BorderSide(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.zero,
-                      borderSide: BorderSide(color: AppColors.accent),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.accent),
                     ),
                     filled: true,
                     fillColor: AppColors.surface,
@@ -127,21 +141,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     fontFamily: 'monospace',
                     color: AppColors.textPrimary,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'LAST NAME',
-                    labelStyle: TextStyle(
+                    labelStyle: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 12,
                       letterSpacing: 1,
                       color: AppColors.textMuted,
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.zero,
-                      borderSide: BorderSide(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.zero,
-                      borderSide: BorderSide(color: AppColors.accent),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.accent),
                     ),
                     filled: true,
                     fillColor: AppColors.surface,
@@ -168,12 +182,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             ),
                           ),
                         )
-                      : OutlinedButton(
+                      : ElevatedButton(
                           onPressed: _saveAndContinue,
-                          style: OutlinedButton.styleFrom(
+                          style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: const BorderSide(color: AppColors.accent, width: 1),
-                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: AppColors.background,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
                           ),
                           child: const Text(
                             'CONTINUE',
@@ -182,7 +200,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 2,
-                              color: AppColors.accent,
                             ),
                           ),
                         ),

@@ -343,7 +343,7 @@ class BillsTimelineState extends State<BillsTimeline>
                           'ACTIVITY',
                           style: TextStyle(
                             fontFamily: 'monospace',
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 2,
                             color: AppColors.textMuted,
@@ -352,6 +352,7 @@ class BillsTimelineState extends State<BillsTimeline>
                       ),
                       if (_editMode) ...[
                         GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () {
                             final allSelected = _totalSelected == timeline.length;
                             if (allSelected) {
@@ -360,20 +361,24 @@ class BillsTimelineState extends State<BillsTimeline>
                               _selectAll(timeline);
                             }
                           },
-                          child: Text(
-                            _totalSelected == timeline.length ? 'DESELECT ALL' : 'SELECT ALL',
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                              color: AppColors.accent,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            child: Text(
+                              _totalSelected == timeline.length ? 'DESELECT ALL' : 'SELECT ALL',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                                color: AppColors.accent,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 4),
                       ],
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () {
                           if (_editMode) {
                             _exitEditMode();
@@ -383,14 +388,17 @@ class BillsTimelineState extends State<BillsTimeline>
                             widget.onEditStateChanged?.call(true, 0);
                           }
                         },
-                        child: Text(
-                          _editMode ? 'DONE' : 'EDIT',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                            color: _editMode ? AppColors.danger : AppColors.textMuted,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          child: Text(
+                            _editMode ? 'DONE' : 'EDIT',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                              color: _editMode ? AppColors.danger : AppColors.textMuted,
+                            ),
                           ),
                         ),
                       ),
