@@ -9,6 +9,8 @@ import '../services/auth_service.dart';
 import '../services/bill_service.dart';
 import '../constants/theme_constants.dart';
 
+const _forgiveReasons = {'They Paid Me Back', 'Gift', 'Splitting Evenly', 'Other'};
+
 Widget _settlementDetailRow(String label, String value, Color valueColor) {
   return Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -48,8 +50,17 @@ void showSettlementDetailSheet(
   VoidCallback? onChanged,
 }) {
   final currentUser = context.read<AuthService>().currentUser!.email!.toLowerCase();
-  final isYou = from == currentUser;
   const accent = Color(0xFF4CAF50);
+
+  // Load members for name resolution
+  List<Map<String, String>> members = [];
+
+  String memberName(String email) {
+    for (final m in members) {
+      if (m['email'] == email) return m['name'] ?? email;
+    }
+    return email.split('@').first;
+  }
 
   showModalBottomSheet(
     context: context,
@@ -60,6 +71,7 @@ void showSettlementDetailSheet(
     ),
     builder: (sheetContext) {
       bool isEditing = false;
+      bool loadingMembers = true;
       final amountController = TextEditingController(text: amount.toStringAsFixed(2));
       final methodController = TextEditingController(text: paymentMethod);
 
@@ -71,6 +83,19 @@ void showSettlementDetailSheet(
         builder: (context, scrollController) {
           return StatefulBuilder(
             builder: (context, setSheetState) {
+              if (loadingMembers && groupId != null) {
+                loadingMembers = false;
+                billService.getGroupMembers(groupId).then((m) {
+                  if (context.mounted) {
+                    setSheetState(() => members = m);
+                  }
+                });
+              }
+              final isForgiveness = _forgiveReasons.contains(paymentMethod);
+              // For settlements, actor is 'from' (payer); for forgiveness, actor is 'to' (forgiver)
+              final isYouActor = isForgiveness
+                  ? to == currentUser
+                  : from == currentUser;
               return ListView(
                 controller: scrollController,
                 padding: const EdgeInsets.all(20),
@@ -105,11 +130,13 @@ void showSettlementDetailSheet(
                             color: accent.withValues(alpha: 0.1),
                             border: Border.all(color: accent.withValues(alpha: 0.3)),
                           ),
-                          child: const Icon(Icons.handshake, color: accent, size: 32),
+                          child: Icon(isForgiveness ? Icons.volunteer_activism : Icons.handshake, color: accent, size: 32),
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          isEditing ? 'EDIT SETTLEMENT' : 'SETTLEMENT',
+                          isEditing
+                              ? (isForgiveness ? 'EDIT FORGIVENESS' : 'EDIT SETTLEMENT')
+                              : (isForgiveness ? 'FORGIVENESS' : 'SETTLEMENT'),
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 18,
@@ -162,7 +189,7 @@ void showSettlementDetailSheet(
                           ),
                         const SizedBox(height: 4),
                         Text(
-                          DateFormat('EEEE, MMMM d, yyyy â€” h:mm a').format(date),
+                          DateFormat('EEEE, MMMM d, yyyy \u2014 h:mm a').format(date),
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 11,
@@ -197,9 +224,82 @@ void showSettlementDetailSheet(
                           ),
                         ),
                         const SizedBox(height: 12),
-                        _settlementDetailRow('Paid by', isYou ? 'You' : from, accent),
-                        const SizedBox(height: 8),
-                        _settlementDetailRow('Paid to', isYou ? from : 'You', accent),
+                        if (isForgiveness) ...[
+                          _settlementDetailRow('Forgiven by', isYouActor ? 'You' : memberName(to), accent),
+                          if (!isYouActor && memberName(to) != to && to.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                to,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 10,
+                                  color: AppColors.textDim,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          _settlementDetailRow(
+                            'Debt from',
+                            isYouActor
+                                ? (from.isNotEmpty
+                                    ? memberName(from)
+                                    : members
+                                        .where((m) => m['email'] != currentUser)
+                                        .map((m) => m['name'] ?? m['email'] ?? '')
+                                        .firstWhere((n) => n.isNotEmpty, orElse: () => ''))
+                                : 'You',
+                            accent,
+                          ),
+                          if (isYouActor && from.isNotEmpty && memberName(from) != from) ...[
+                            const SizedBox(height: 2),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                from,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 10,
+                                  color: AppColors.textDim,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ] else ...[
+                          _settlementDetailRow('Paid by', isYouActor ? 'You' : memberName(from), accent),
+                          if (!isYouActor && memberName(from) != from) ...[
+                            const SizedBox(height: 2),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                from,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 10,
+                                  color: AppColors.textDim,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          _settlementDetailRow('Paid to', isYouActor ? memberName(to) : 'You', accent),
+                          if (isYouActor && memberName(to) != to) ...[
+                            const SizedBox(height: 2),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                to,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 10,
+                                  color: AppColors.textDim,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                         if (isEditing) ...[
                           const SizedBox(height: 8),
                           const Text(

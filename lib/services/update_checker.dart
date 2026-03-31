@@ -61,7 +61,7 @@ Future<void> checkForUpdate(BuildContext context) async {
       }
     }
   } catch (_) {
-    // Silently fail â€” don't block the app if the check fails
+    // Silently fail \u2014 don't block the app if the check fails
   }
 }
 

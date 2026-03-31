@@ -6,12 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/bill.dart';
 import '../constants/theme_constants.dart';
+import 'new_badge.dart';
 
 class BillTile extends StatelessWidget {
   final Bill bill;
   final String currentUserEmail;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final bool isNew;
+  final List<Map<String, String>> members;
 
   const BillTile({
     super.key,
@@ -19,7 +22,16 @@ class BillTile extends StatelessWidget {
     required this.currentUserEmail,
     required this.onTap,
     required this.onLongPress,
+    this.isNew = false,
+    this.members = const [],
   });
+
+  String _memberName(String email) {
+    for (final m in members) {
+      if (m['email'] == email) return m['name'] ?? email;
+    }
+    return email.split('@').first;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +39,14 @@ class BillTile extends StatelessWidget {
     final accentColor = isYourBill ? AppColors.accent : AppColors.danger;
     final catColor = colorForCategory(bill.category.isNotEmpty ? bill.category : bill.description);
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      behavior: HitTestBehavior.opaque,
+      child: Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        Container(
       margin: const EdgeInsets.only(bottom: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
@@ -36,10 +55,7 @@ class BillTile extends StatelessWidget {
           left: BorderSide(color: accentColor, width: 3),
         ),
       ),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Row(
+      child: Row(
           children: [
             // Category icon
             Container(
@@ -91,6 +107,20 @@ class BillTile extends StatelessWidget {
                         fontSize: 10,
                         color: Color(0xFF667788),
                         fontStyle: FontStyle.italic,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (bill.createdBy != null &&
+                      bill.createdBy!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Added by ${_memberName(bill.createdBy!)}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        color: AppColors.textDim,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -154,7 +184,15 @@ class BillTile extends StatelessWidget {
             }),
           ],
         ),
-      ),
+    ),
+        if (isNew)
+          const Positioned(
+            top: 0,
+            right: 0,
+            child: IgnorePointer(child: NewBadge()),
+          ),
+      ],
+    ),
     );
   }
 }

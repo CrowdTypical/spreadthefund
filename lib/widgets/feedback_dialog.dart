@@ -55,7 +55,7 @@ Future<void> _submitFeedback(BuildContext context, String type, String body) asy
       const SnackBar(
         backgroundColor: AppColors.surface,
         content: Text(
-          'Feedback sent â€” thank you!',
+          'Feedback sent \u2014 thank you!',
           style: TextStyle(fontFamily: 'monospace', color: AppColors.accent),
         ),
       ),

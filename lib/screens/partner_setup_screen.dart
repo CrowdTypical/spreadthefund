@@ -205,7 +205,7 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
         widget.onGroupCreated(newGroupId);
       }
 
-      // Always add by email â€” no UID lookup needed
+      // Always add by email \u2014 no UID lookup needed
       await _billService.addMemberToGroup(
         targetGroupId,
         email.toLowerCase(),
@@ -217,6 +217,7 @@ class _PartnerSetupScreenState extends State<PartnerSetupScreen> {
         groupName: groupName,
         inviterUid: currentUser.uid,
         inviterName: currentUser.displayName ?? 'Someone',
+        inviterEmail: currentUser.email ?? '',
         inviteeEmail: email,
       );
 

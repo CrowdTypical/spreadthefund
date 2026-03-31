@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../constants/theme_constants.dart';
+import 'new_badge.dart';
 
 class SettlementTile extends StatelessWidget {
   final String settlementId;
@@ -16,6 +17,8 @@ class SettlementTile extends StatelessWidget {
   final String paymentMethod;
   final String currentUserEmail;
   final VoidCallback onTap;
+  final bool isNew;
+  final List<Map<String, String>> members;
 
   const SettlementTile({
     super.key,
@@ -28,16 +31,36 @@ class SettlementTile extends StatelessWidget {
     required this.currentUserEmail,
     required this.onTap,
     this.paymentMethod = '',
+    this.isNew = false,
+    this.members = const [],
   });
+
+  String _memberName(String email) {
+    for (final m in members) {
+      if (m['email'] == email) return m['name'] ?? email;
+    }
+    return email.split('@').first;
+  }
+
+  static const _forgiveReasons = {'They Paid Me Back', 'Gift', 'Splitting Evenly', 'Other'};
 
   @override
   Widget build(BuildContext context) {
-    final isYou = from == currentUserEmail;
+    final isForgiveness = _forgiveReasons.contains(paymentMethod);
+    // For settlements, the actor is 'from' (the payer)
+    // For forgiveness, the actor is 'to' (the forgiver)
+    final isYou = isForgiveness
+        ? to == currentUserEmail
+        : from == currentUserEmail;
     final who = isYou ? 'You' : 'They';
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      behavior: HitTestBehavior.opaque,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Container(
         margin: const EdgeInsets.only(bottom: 2),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: const BoxDecoration(
@@ -56,9 +79,9 @@ class SettlementTile extends StatelessWidget {
                 color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
                 border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
               ),
-              child: const Icon(
-                Icons.handshake,
-                color: Color(0xFF4CAF50),
+              child: Icon(
+                isForgiveness ? Icons.volunteer_activism : Icons.handshake,
+                color: const Color(0xFF4CAF50),
                 size: 20,
               ),
             ),
@@ -69,7 +92,7 @@ class SettlementTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '$who SETTLED UP',
+                    isForgiveness ? '$who FORGAVE' : '$who SETTLED UP',
                     style: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 14,
@@ -78,29 +101,43 @@ class SettlementTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    remainingBalance > 0.01
-                        ? '\$${remainingBalance.toStringAsFixed(2)} remaining'
-                        : 'All settled!',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      color: remainingBalance > 0.01
-                          ? AppColors.danger
-                          : const Color(0xFF4CAF50),
-                    ),
-                  ),
-                  if (paymentMethod.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'via $paymentMethod',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 10,
-                        color: AppColors.textDim,
+                  Row(
+                    children: [
+                      Text(
+                        remainingBalance > 0.01
+                            ? '\$${remainingBalance.toStringAsFixed(2)} remaining'
+                            : 'All settled!',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          color: remainingBalance > 0.01
+                              ? AppColors.danger
+                              : const Color(0xFF4CAF50),
+                        ),
                       ),
+                      if (!isForgiveness && paymentMethod.isNotEmpty) ...[
+                        Text(
+                          ' via $paymentMethod',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 10,
+                            color: AppColors.textDim,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'by ${isYou ? 'You' : _memberName(isForgiveness ? to : from)}',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      color: AppColors.textDim,
                     ),
-                  ],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -130,6 +167,14 @@ class SettlementTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+          if (isNew)
+            const Positioned(
+              top: 0,
+              right: 0,
+              child: IgnorePointer(child: NewBadge()),
+            ),
+        ],
       ),
     );
   }

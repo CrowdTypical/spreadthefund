@@ -56,8 +56,6 @@ class AuthService {
       if (email != null) {
         // Migrate any old UID-based group memberships to email
         await _billService.migrateUidToEmail(uid, email);
-        // Mark pending invites as accepted
-        await _billService.processPendingInvites(email);
       }
 
       return email;
@@ -115,7 +113,6 @@ class AuthService {
 
       if (userEmail != null) {
         await _billService.migrateUidToEmail(uid, userEmail);
-        await _billService.processPendingInvites(userEmail);
       }
 
       return {'success': true};
@@ -166,7 +163,6 @@ class AuthService {
 
       if (userEmail != null) {
         await _billService.migrateUidToEmail(uid, userEmail);
-        await _billService.processPendingInvites(userEmail);
       }
 
       return {'success': true};

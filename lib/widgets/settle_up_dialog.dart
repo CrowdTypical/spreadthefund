@@ -179,7 +179,7 @@ void showSettleUpDialog(
                 ),
                 const SizedBox(height: 16),
 
-                // â”€â”€ WHO'S PAYING â”€â”€
+                // —— WHO'S PAYING / FORGIVING ——
                 Text(
                   payerLabel,
                   style: const TextStyle(
@@ -190,6 +190,24 @@ void showSettleUpDialog(
                   ),
                 ),
                 const SizedBox(height: 8),
+                if (isForgiving)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D1117),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      '${user.displayName ?? currentEmail.split('@').first} (You)',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                  )
+                else
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -215,7 +233,42 @@ void showSettleUpDialog(
                   ),
                 ),
                 const SizedBox(height: 16),
-
+                // â"€â"€ WHO ARE YOU PAYING â"€â"€
+                if (!isForgiving) ...[
+                  const Text(
+                    'WHO ARE YOU PAYING',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      letterSpacing: 2,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D1117),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      () {
+                        final payee = selectedPayer == currentEmail ? partnerEmail : currentEmail;
+                        for (final m in members) {
+                          if (m['email'] == payee) return m['name'] ?? payee.split('@').first;
+                        }
+                        return payee.split('@').first;
+                      }(),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 // â”€â”€ PAYMENT METHOD â”€â”€
                 Text(
                   methodLabel,
@@ -274,7 +327,14 @@ void showSettleUpDialog(
                 await billService.settleUp(
                   groupId: groupId,
                   from: isForgiving
-                      ? (selectedPayer == currentEmail ? partnerEmail : selectedPayer)
+                      ? () {
+                          // Derive partner email from members
+                          final partner = members
+                              .map((m) => m['email'] ?? '')
+                              .where((e) => e.isNotEmpty && e != currentEmail)
+                              .firstOrNull ?? partnerEmail;
+                          return partner;
+                        }()
                       : selectedPayer,
                   to: isForgiving
                       ? currentEmail

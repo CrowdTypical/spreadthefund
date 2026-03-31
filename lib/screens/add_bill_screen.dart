@@ -492,7 +492,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${_splitPercent.round()}%  â€¢  \$${payerShare.toStringAsFixed(2)}',
+                          '${_splitPercent.round()}%  \u2022  \$${payerShare.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
@@ -501,7 +501,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                           ),
                         ),
                         Text(
-                          '\$${otherShare.toStringAsFixed(2)}  â€¢  ${(100 - _splitPercent).round()}%',
+                          '\$${otherShare.toStringAsFixed(2)}  \u2022  ${(100 - _splitPercent).round()}%',
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
@@ -889,6 +889,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
     try {
       final amount = double.parse(_amountController.text);
+      final currentUserEmail = context.read<AuthService>().currentUser!.email!.toLowerCase();
 
       final success = await _billService.addBill(
         groupId: widget.groupId,
@@ -899,6 +900,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
         notes: _notesController.text.trim(),
         splitPercent: _splitPercent,
         date: _selectedDate,
+        createdBy: currentUserEmail,
       );
 
       if (success && mounted) {

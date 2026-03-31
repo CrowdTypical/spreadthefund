@@ -25,6 +25,7 @@ import '../widgets/create_group_dialog.dart';
 import '../widgets/group_dialogs.dart';
 import '../widgets/about_dialog.dart';
 import '../widgets/feedback_dialog.dart';
+import '../widgets/confetti_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -43,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen>
   final _timelineKey = GlobalKey<BillsTimelineState>();
   bool _editMode = false;
   int _editSelectedCount = 0;
+  bool _showConfetti = false;
   late final AnimationController _fabMorphController;
   late final Animation<double> _fabMorph;
 
@@ -87,7 +89,8 @@ class _HomeScreenState extends State<HomeScreen>
               .doc(user.uid)
               .set({'uidMigrated': true}, SetOptions(merge: true));
         }
-        await billService.processPendingInvites(user.email!);
+        // Pending invites are now shown in the drawer for user approval
+        // (no longer auto-accepted).
       }
 
       final email = user.email!.toLowerCase();
@@ -228,7 +231,9 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() => _groupOrder = newOrder);
           _saveGroupOrder(newOrder);
         },
-        onGroupSelected: (id) => setState(() { groupId = id; _editMode = false; _editSelectedCount = 0; _fabMorphController.reset(); }),
+        onGroupSelected: (id) {
+          setState(() { groupId = id; _editMode = false; _editSelectedCount = 0; _fabMorphController.reset(); });
+        },
         onGroupLongPress: (group) async {
           final messenger = ScaffoldMessenger.of(context);
           final result = await Navigator.push(
@@ -272,6 +277,10 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 _buildGroupView(),
                 _buildMorphingFab(),
+                if (_showConfetti)
+                  ConfettiOverlay(
+                    onComplete: () => setState(() => _showConfetti = false),
+                  ),
               ],
             ),
     );
@@ -438,6 +447,7 @@ class _HomeScreenState extends State<HomeScreen>
             onBillTap: (bill) => _showBillDetailSheet(bill, billService),
             onBillLongPress: (bill) => _showDeleteOption(bill, billService),
             onChanged: () => setState(() {}),
+            onSettled: () => setState(() => _showConfetti = true),
             onEditStateChanged: (editing, selectedCount) {
               if (editing && !_editMode) {
                 _fabMorphController.forward();
@@ -573,7 +583,7 @@ class _HomeScreenState extends State<HomeScreen>
     final user = context.read<AuthService>().currentUser;
     if (user == null || user.email == null) return;
 
-    await billService.processPendingInvites(user.email!);
+    final pendingCount = await billService.countPendingInvites(user.email!);
 
     if (mounted) {
       final groups = await billService.getUserGroupsStream(user.email!.toLowerCase()).first;
@@ -586,11 +596,14 @@ class _HomeScreenState extends State<HomeScreen>
         }
       }
       if (!mounted) return;
+      final msg = pendingCount > 0
+          ? 'You have $pendingCount pending invite(s)'
+          : 'Found ${groups.length} group(s)';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: AppColors.surface,
           content: Text(
-            'Found ${groups.length} group(s)',
+            msg,
             style: const TextStyle(fontFamily: 'monospace', color: AppColors.accent),
           ),
         ),

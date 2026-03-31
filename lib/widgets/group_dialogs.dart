@@ -441,7 +441,7 @@ Future<void> _submitGroupLimitFeedback(BuildContext context) async {
         const SnackBar(
           backgroundColor: AppColors.surface,
           content: Text(
-            'Feedback submitted â€” thank you!',
+            'Feedback submitted \u2014 thank you!',
             style: TextStyle(fontFamily: 'monospace', color: AppColors.accent),
           ),
         ),

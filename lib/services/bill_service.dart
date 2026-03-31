@@ -7,6 +7,7 @@ import 'dart:developer';
 import 'package:flutter/foundation.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/bill.dart';
 import '../models/group.dart';
@@ -23,6 +24,7 @@ class BillService {
     required String groupName,
     required String inviterUid,
     required String inviterName,
+    required String inviterEmail,
     required String inviteeEmail,
   }) async {
     try {
@@ -31,6 +33,7 @@ class BillService {
         'groupName': groupName,
         'inviterUid': inviterUid,
         'inviterName': inviterName,
+        'inviterEmail': inviterEmail.toLowerCase(),
         'inviteeEmail': inviteeEmail.toLowerCase(),
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
@@ -42,31 +45,66 @@ class BillService {
     }
   }
 
-  // Check and process pending invites for a user who just signed in.
-  // Marks invites as accepted and ensures the user's email is in the group.
-  Future<void> processPendingInvites(String email) async {
+  // Count pending invites for a user (no longer auto-accepts).
+  Future<int> countPendingInvites(String email) async {
     try {
       final normalizedEmail = email.toLowerCase();
-      if (kDebugMode) log('Processing invites for: $normalizedEmail');
       final snapshot = await _firestore
           .collection('invites')
           .where('inviteeEmail', isEqualTo: normalizedEmail)
+          .where('status', isEqualTo: 'pending')
           .get();
-
-      if (kDebugMode) log('Found ${snapshot.docs.length} invite(s)');
-
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final status = data['status'] as String?;
-        if (status != 'pending') {
-          if (kDebugMode) log('Skipping invite ${doc.id} — status: $status');
-          continue;
-        }
-        await doc.reference.update({'status': 'accepted'});
-        if (kDebugMode) log('Marked invite ${doc.id} as accepted');
-      }
+      return snapshot.docs.length;
     } catch (e) {
-      if (kDebugMode) log('Error processing invites: $e');
+      if (kDebugMode) log('Error counting invites: $e');
+      return 0;
+    }
+  }
+
+  // Real-time stream of pending invites received by this user.
+  Stream<List<Map<String, dynamic>>> getReceivedPendingInvitesStream(String email) {
+    return _firestore
+        .collection('invites')
+        .where('inviteeEmail', isEqualTo: email.toLowerCase())
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => {...doc.data(), 'id': doc.id})
+            .toList());
+  }
+
+  // Real-time stream of pending invites sent by this user.
+  Stream<List<Map<String, dynamic>>> getSentPendingInvitesStream(String uid) {
+    return _firestore
+        .collection('invites')
+        .where('inviterUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => {...doc.data(), 'id': doc.id})
+            .toList());
+  }
+
+  // Accept a pending invite (member is already in the group).
+  Future<void> acceptInvite(String inviteId) async {
+    try {
+      await _firestore.collection('invites').doc(inviteId).update({
+        'status': 'accepted',
+      });
+      if (kDebugMode) log('Accepted invite $inviteId');
+    } catch (e) {
+      if (kDebugMode) log('Error accepting invite: $e');
+    }
+  }
+
+  // Decline a pending invite (removes member from the group).
+  Future<void> declineInvite(String inviteId, String groupId, String email) async {
+    try {
+      await _firestore.collection('invites').doc(inviteId).delete();
+      await removeMemberFromGroup(groupId, email.toLowerCase());
+      if (kDebugMode) log('Declined invite $inviteId, removed from group $groupId');
+    } catch (e) {
+      if (kDebugMode) log('Error declining invite: $e');
     }
   }
 
@@ -202,6 +240,7 @@ class BillService {
     String notes = '',
     double splitPercent = 50.0,
     DateTime? date,
+    String? createdBy,
   }) async {
     try {
       final bill = Bill(
@@ -214,6 +253,7 @@ class BillService {
         splitPercent: splitPercent,
         createdAt: date ?? DateTime.now(),
         settled: false,
+        createdBy: createdBy,
       );
       final data = bill.toMap();
       data['splitEquallyWith'] = 'both';
@@ -221,6 +261,12 @@ class BillService {
         data['createdAt'] = FieldValue.serverTimestamp();
       }
       await _firestore.collection('groups').doc(groupId).collection('bills').add(data);
+
+      // Mark as seen so the creator's own bill doesn't show as unseen
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await updateLastSeen(groupId, uid);
+      }
 
       // Track the category usage for this group
       final catRef = _firestore
@@ -508,6 +554,13 @@ class BillService {
         'settledAt': Timestamp.now(),
         'paymentMethod': paymentMethod,
       });
+
+      // Mark as seen so the creator's own settlement doesn't show as unseen
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await updateLastSeen(groupId, uid);
+      }
+
       return true;
     } catch (e) {
       if (kDebugMode) log('Error settling up: $e');
@@ -820,6 +873,101 @@ class BillService {
     controller.onCancel = () {
       billSub.cancel();
       settleSub.cancel();
+      controller.close();
+    };
+
+    return controller.stream;
+  }
+
+  // ── Last Seen Tracking ──────────────────────────────────────────
+
+  // Update the last-seen timestamp for the current user in a group
+  Future<void> updateLastSeen(String groupId, String uid) async {
+    try {
+      await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('lastSeen')
+          .doc(uid)
+          .set({'timestamp': Timestamp.now()});
+    } catch (e) {
+      if (kDebugMode) log('Error updating lastSeen: $e');
+    }
+  }
+
+  // Stream the last-seen timestamp for a user in a group
+  Stream<DateTime?> getLastSeenStream(String groupId, String uid) {
+    return _firestore
+        .collection('groups')
+        .doc(groupId)
+        .collection('lastSeen')
+        .doc(uid)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) return null;
+      final ts = doc.data()?['timestamp'] as Timestamp?;
+      return ts?.toDate();
+    });
+  }
+
+  // Stream whether a group has unseen activity for a given user.
+  // Uses Firestore where-queries to check for items newer than lastSeen.
+  Stream<bool> hasUnseenActivity(String groupId, String uid) {
+    final controller = StreamController<bool>();
+    StreamSubscription? innerBillSub;
+    StreamSubscription? innerSettleSub;
+    bool? billResult;
+    bool? settleResult;
+
+    void cancelInner() {
+      innerBillSub?.cancel();
+      innerSettleSub?.cancel();
+      innerBillSub = null;
+      innerSettleSub = null;
+      billResult = null;
+      settleResult = null;
+    }
+
+    void emitIfReady() {
+      if (billResult != null && settleResult != null && !controller.isClosed) {
+        controller.add(billResult! || settleResult!);
+      }
+    }
+
+    final lastSeenSub = getLastSeenStream(groupId, uid).listen((lastSeen) {
+      cancelInner();
+      final ts = lastSeen != null
+          ? Timestamp.fromDate(lastSeen)
+          : Timestamp(0, 0);
+
+      innerBillSub = _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('bills')
+          .where('createdAt', isGreaterThan: ts)
+          .limit(1)
+          .snapshots()
+          .listen((snap) {
+        billResult = snap.docs.isNotEmpty;
+        emitIfReady();
+      });
+
+      innerSettleSub = _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('settlements')
+          .where('settledAt', isGreaterThan: ts)
+          .limit(1)
+          .snapshots()
+          .listen((snap) {
+        settleResult = snap.docs.isNotEmpty;
+        emitIfReady();
+      });
+    });
+
+    controller.onCancel = () {
+      lastSeenSub.cancel();
+      cancelInner();
       controller.close();
     };
 

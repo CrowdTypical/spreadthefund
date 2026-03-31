@@ -236,6 +236,43 @@ class _BillDetailSheetContentState extends State<BillDetailSheetContent> {
           ),
         ),
 
+        // Added by
+        if (bill.createdBy != null && bill.createdBy!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sheetDetailRow(
+                  'Added by',
+                  _memberName(bill.createdBy!),
+                  AppColors.textPrimary,
+                ),
+                if (_memberName(bill.createdBy!) != bill.createdBy!) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      bill.createdBy!,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        color: AppColors.textDim,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+
         // Notes
         if (bill.notes.isNotEmpty) ...[
           const SizedBox(height: 12),

@@ -94,7 +94,7 @@ class BalanceCard extends StatelessWidget {
               ),
               child: Text(
                 buttonLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 14,
                   fontWeight: FontWeight.w900,

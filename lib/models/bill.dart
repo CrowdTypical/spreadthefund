@@ -14,6 +14,7 @@ class Bill {
   final double splitPercent;
   final DateTime createdAt;
   final bool settled;
+  final String? createdBy;
 
   Bill({
     required this.id,
@@ -25,6 +26,7 @@ class Bill {
     this.splitPercent = 50.0,
     required this.createdAt,
     required this.settled,
+    this.createdBy,
   });
 
   factory Bill.fromMap(Map<String, dynamic> map, String id) {
@@ -40,6 +42,7 @@ class Bill {
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
       settled: map['settled'] ?? false,
+      createdBy: map['createdBy'] as String?,
     );
   }
 
@@ -52,5 +55,6 @@ class Bill {
         'splitPercent': splitPercent,
         'createdAt': Timestamp.fromDate(createdAt),
         'settled': settled,
+        if (createdBy != null) 'createdBy': createdBy,
       };
 }

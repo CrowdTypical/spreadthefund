@@ -75,10 +75,8 @@ service cloud.firestore {
                       && request.resource.data.amount is number
                       && request.resource.data.amount > 0;
 
-        // Only the bill creator or group owner can delete
-        allow delete: if request.auth != null && isGroupMember(groupId)
-                      && (userEmail() == resource.data.paidBy
-                          || userEmail() == groupCreator(groupId));
+        // Any group member can delete bills
+        allow delete: if request.auth != null && isGroupMember(groupId);
       }
 
       // ── groups/{groupId}/settlements/{settlementId} ──
@@ -96,10 +94,16 @@ service cloud.firestore {
 
         allow update: if request.auth != null && isGroupMember(groupId);
 
-        // Only the settlement creator or group owner can delete
-        allow delete: if request.auth != null && isGroupMember(groupId)
-                      && (userEmail() == resource.data.from
-                          || userEmail() == groupCreator(groupId));
+        // Any group member can delete settlements
+        allow delete: if request.auth != null && isGroupMember(groupId);
+      }
+
+      // ── groups/{groupId}/lastSeen/{uid} ──
+      // Members can read any lastSeen doc; users can only write their own.
+      match /lastSeen/{uid} {
+        allow read: if request.auth != null && isGroupMember(groupId);
+        allow write: if request.auth != null && isGroupMember(groupId)
+                     && request.auth.uid == uid;
       }
 
       // ── groups/{groupId}/categories/{categoryId} ──

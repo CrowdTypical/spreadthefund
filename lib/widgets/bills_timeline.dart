@@ -2,6 +2,7 @@
 // Licensed under the PolyForm Shield License 1.0.0
 // https://polyformproject.org/licenses/shield/1.0.0/
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,6 +23,7 @@ class BillsTimeline extends StatefulWidget {
   final void Function(Bill bill) onBillLongPress;
   final VoidCallback onChanged;
   final void Function(bool editing, int selectedCount)? onEditStateChanged;
+  final VoidCallback? onSettled;
 
   const BillsTimeline({
     super.key,
@@ -31,6 +33,7 @@ class BillsTimeline extends StatefulWidget {
     required this.onBillLongPress,
     required this.onChanged,
     this.onEditStateChanged,
+    this.onSettled,
   });
 
   @override
@@ -38,14 +41,19 @@ class BillsTimeline extends StatefulWidget {
 }
 
 class BillsTimelineState extends State<BillsTimeline>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _editMode = false;
   final Set<String> _selectedBillIds = {};
   final Set<String> _selectedSettlementIds = {};
   late final AnimationController _editAnimController;
   late final Animation<double> _checkboxWidth;
+  AnimationController? _fadeOutController;
+  bool _fadingOut = false;
   late Stream<List<Bill>> _billsStream;
   late Stream<QuerySnapshot> _settlementsStream;
+  DateTime? _lastSeen;
+  StreamSubscription<DateTime?>? _lastSeenSub;
+  List<Map<String, String>> _members = [];
 
   bool get editMode => _editMode;
   int get totalSelected => _selectedBillIds.length + _selectedSettlementIds.length;
@@ -62,6 +70,8 @@ class BillsTimelineState extends State<BillsTimeline>
     );
     _billsStream = widget.billService.getBillsStream(widget.groupId);
     _settlementsStream = widget.billService.getSettlementsStream(widget.groupId);
+    _subscribeLastSeen();
+    _loadMembers();
   }
 
   @override
@@ -70,6 +80,8 @@ class BillsTimelineState extends State<BillsTimeline>
     if (oldWidget.groupId != widget.groupId) {
       _billsStream = widget.billService.getBillsStream(widget.groupId);
       _settlementsStream = widget.billService.getSettlementsStream(widget.groupId);
+      _subscribeLastSeen();
+      _loadMembers();
       // Reset edit state internally without notifying parent
       // (parent already resets its own state when changing groupId)
       _editAnimController.reset();
@@ -83,8 +95,36 @@ class BillsTimelineState extends State<BillsTimeline>
 
   @override
   void dispose() {
+    _lastSeenSub?.cancel();
+    _fadeOutController?.dispose();
     _editAnimController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMembers() async {
+    final members = await widget.billService.getGroupMembers(widget.groupId);
+    if (mounted) {
+      setState(() => _members = members);
+    }
+  }
+
+  void _subscribeLastSeen() {
+    _lastSeenSub?.cancel();
+    _lastSeen = null;
+    final uid = context.read<AuthService>().currentUser?.uid;
+    if (uid == null) return;
+    bool firstEmission = true;
+    _lastSeenSub = widget.billService
+        .getLastSeenStream(widget.groupId, uid)
+        .listen((ts) {
+      if (!mounted) return;
+      if (firstEmission) {
+        firstEmission = false;
+        // Capture the old lastSeen for highlighting, then mark as seen
+        setState(() => _lastSeen = ts);
+        widget.billService.updateLastSeen(widget.groupId, uid);
+      }
+    });
   }
 
   void _exitEditMode() {
@@ -172,12 +212,27 @@ class BillsTimelineState extends State<BillsTimeline>
     );
 
     if (confirmed == true && mounted) {
+      // Capture IDs before animation, then fade out
+      final billIds = Set<String>.from(_selectedBillIds);
+      final settlementIds = Set<String>.from(_selectedSettlementIds);
+
+      _fadeOutController?.dispose();
+      _fadeOutController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 400),
+      );
+      setState(() => _fadingOut = true);
+      await _fadeOutController!.forward().orCancel.catchError((_) {});
+
+      if (!mounted) return;
+
       final success = await widget.billService.bulkDeleteActivity(
         groupId: widget.groupId,
-        billIds: _selectedBillIds,
-        settlementIds: _selectedSettlementIds,
+        billIds: billIds,
+        settlementIds: settlementIds,
       );
       if (mounted) {
+        setState(() => _fadingOut = false);
         _exitEditMode();
         widget.onChanged();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -308,11 +363,16 @@ class BillsTimelineState extends State<BillsTimeline>
               userEmail: currentUser,
             );
 
-            final partnerEmail = bills
-                .map((b) => b.paidBy)
-                .where((email) => email != currentUser)
-                .cast<String>()
-                .firstOrNull ?? '';
+            final partnerEmail = _members
+                .map((m) => m['email'] ?? '')
+                .where((email) => email.isNotEmpty && email != currentUser)
+                .firstOrNull
+                ?? bills
+                    .map((b) => b.paidBy)
+                    .where((email) => email != currentUser)
+                    .cast<String>()
+                    .firstOrNull
+                ?? '';
 
             return ListView(
               padding: const EdgeInsets.all(12),
@@ -330,6 +390,7 @@ class BillsTimelineState extends State<BillsTimeline>
                         youOwe: difference > 0,
                         groupId: widget.groupId,
                         billService: widget.billService,
+                        onSettled: widget.onSettled,
                       );
                     },
                 ),
@@ -409,13 +470,16 @@ class BillsTimelineState extends State<BillsTimeline>
                   if (item['type'] == 'bill') {
                     final bill = item['data'] as Bill;
                     final isSelected = _selectedBillIds.contains(bill.id);
-                    return Row(
+                    final isNew = _lastSeen != null && bill.createdAt.isAfter(_lastSeen!);
+                    final row = Row(
                       children: [
                         AnimatedBuilder(
                           animation: _checkboxWidth,
-                          builder: (context, child) => SizedBox(
-                            width: _checkboxWidth.value,
-                            child: child,
+                          builder: (context, child) => ClipRect(
+                            child: SizedBox(
+                              width: _checkboxWidth.value,
+                              child: child,
+                            ),
                           ),
                           child: GestureDetector(
                             onTap: () => _toggleBill(bill.id),
@@ -433,6 +497,8 @@ class BillsTimelineState extends State<BillsTimeline>
                           child: BillTile(
                             bill: bill,
                             currentUserEmail: currentUser,
+                            isNew: isNew,
+                            members: _members,
                             onTap: _editMode
                                 ? () => _toggleBill(bill.id)
                                 : () => widget.onBillTap(bill),
@@ -443,16 +509,34 @@ class BillsTimelineState extends State<BillsTimeline>
                         ),
                       ],
                     );
+                    if (_fadingOut && isSelected && _fadeOutController != null) {
+                      return AnimatedBuilder(
+                        animation: _fadeOutController!,
+                        builder: (context, child) => Opacity(
+                          opacity: 1.0 - _fadeOutController!.value,
+                          child: Transform.scale(
+                            scale: 1.0 - _fadeOutController!.value * 0.05,
+                            child: child,
+                          ),
+                        ),
+                        child: row,
+                      );
+                    }
+                    return row;
                   } else {
                     final settlementId = item['id'] as String;
                     final isSelected = _selectedSettlementIds.contains(settlementId);
-                    return Row(
+                    final settlementDate = item['date'] as DateTime;
+                    final isNewSettlement = _lastSeen != null && settlementDate.isAfter(_lastSeen!);
+                    final row = Row(
                       children: [
                         AnimatedBuilder(
                           animation: _checkboxWidth,
-                          builder: (context, child) => SizedBox(
-                            width: _checkboxWidth.value,
-                            child: child,
+                          builder: (context, child) => ClipRect(
+                            child: SizedBox(
+                              width: _checkboxWidth.value,
+                              child: child,
+                            ),
                           ),
                           child: GestureDetector(
                             onTap: () => _toggleSettlement(settlementId),
@@ -472,10 +556,12 @@ class BillsTimelineState extends State<BillsTimeline>
                             amount: item['amount'] as double,
                             from: item['from'] as String,
                             to: item['to'] as String? ?? '',
-                            date: item['date'] as DateTime,
+                            date: settlementDate,
                             remainingBalance: (item['remainingAtTime'] as double?) ?? 0.0,
                             paymentMethod: item['paymentMethod'] as String? ?? '',
                             currentUserEmail: currentUser,
+                            isNew: isNewSettlement,
+                            members: _members,
                             onTap: _editMode
                                 ? () => _toggleSettlement(settlementId)
                                 : () => showSettlementDetailSheet(
@@ -495,6 +581,20 @@ class BillsTimelineState extends State<BillsTimeline>
                         ),
                       ],
                     );
+                    if (_fadingOut && isSelected && _fadeOutController != null) {
+                      return AnimatedBuilder(
+                        animation: _fadeOutController!,
+                        builder: (context, child) => Opacity(
+                          opacity: 1.0 - _fadeOutController!.value,
+                          child: Transform.scale(
+                            scale: 1.0 - _fadeOutController!.value * 0.05,
+                            child: child,
+                          ),
+                        ),
+                        child: row,
+                      );
+                    }
+                    return row;
                   }
                 }),
                 // Bottom padding when in edit mode to keep items above the floating delete bar
