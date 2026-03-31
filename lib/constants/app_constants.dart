@@ -2,7 +2,7 @@
 // Licensed under the PolyForm Shield License 1.0.0
 // https://polyformproject.org/licenses/shield/1.0.0/
 
-const String appVersion = 'v1.0.3';
+const String appVersion = 'v1.0.9';
 
 final RegExp emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
